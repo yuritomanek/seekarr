@@ -1,0 +1,29 @@
+# Binaries
+seekarr
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test binaries
+*.test
+
+# Go workspace file
+go.work
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Config and state files (local development)
+config.yaml
+config.yml
+.seekarr.lock
+.current_page.txt
+search_denylist.json
+failure_list.txt
+/implementation
+CLAUDE.md
