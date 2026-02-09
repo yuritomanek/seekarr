@@ -1,0 +1,75 @@
+# Seekarr Configuration Example
+# Copy this file to config.yaml and fill in your API keys
+
+lidarr:
+  api_key: ${LIDARR_API_KEY}  # Required: Your Lidarr API key
+  host_url: http://localhost:8686
+  download_dir: /downloads  # Where Lidarr expects to find imported music
+  disable_sync: false
+
+slskd:
+  api_key: ${SLSKD_API_KEY}  # Required: Your Slskd API key
+  host_url: http://localhost:5030
+  url_base: /
+  download_dir: /downloads  # Where Slskd downloads files (should match Lidarr)
+  delete_searches: false
+  stalled_timeout: 3600  # Seconds before considering a download stalled
+
+release:
+  use_most_common_tracknum: true
+  allow_multi_disc: true
+  accepted_countries:
+    - Europe
+    - Japan
+    - United States
+    - United Kingdom
+    - "[Worldwide]"
+  skip_region_check: false
+  accepted_formats:
+    - CD
+    - Digital Media
+    - Vinyl
+
+search:
+  search_timeout: 5000  # Milliseconds to wait for search responses
+  maximum_peer_queue: 50
+  minimum_peer_upload_speed: 0
+  minimum_filename_match_ratio: 0.8  # 0.0-1.0, higher = stricter matching
+  allowed_filetypes:
+    - flac 24/192
+    - flac 16/44.1
+    - flac
+    - mp3 320
+    - mp3
+  ignored_users: []  # List of Soulseek usernames to ignore
+  search_for_tracks: true
+  album_prepend_artist: false
+  track_prepend_artist: true
+  search_type: incrementing_page  # Options: first_page, incrementing_page, all
+  number_of_albums_to_grab: 10
+  remove_wanted_on_failure: false
+  title_blacklist: []  # Albums containing these strings will be skipped
+  search_source: missing  # Options: missing, cutoff_unmet, all
+  enable_search_denylist: true
+  max_search_failures: 3  # Skip album after this many failed search attempts
+
+download:
+  download_filtering: true
+  use_extension_whitelist: false
+  extensions_whitelist:
+    - lrc
+    - nfo
+    - txt
+    - jpg
+    - png
+
+timing:
+  search_wait_seconds: 5  # Wait time after initiating search
+  download_poll_seconds: 10  # How often to check download progress
+  import_poll_seconds: 2  # How often to check Lidarr import status
+  stall_check_interval_seconds: 60
+
+logging:
+  level: INFO  # Options: DEBUG, INFO, WARN, ERROR
+  format: ""  # Leave empty for text, or set to "json"
+  datefmt: ""
