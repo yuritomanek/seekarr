@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -30,9 +31,9 @@ func run() int {
 	logger.Info("starting seekarr", "version", version)
 
 	// Load configuration
-	cfg, err := loadConfig()
+	cfg, err := loadConfig(logger)
 	if err != nil {
-		logger.Error("failed to load configuration", "error", err)
+		// loadConfig already logged the detailed error
 		return 1
 	}
 
@@ -125,7 +126,6 @@ func run() int {
 
 // setupLogger creates a structured logger with appropriate output format
 func setupLogger() *slog.Logger {
-	// Use JSON output if LOG_FORMAT=json, otherwise text
 	var handler slog.Handler
 	opts := &slog.HandlerOptions{
 		Level: slog.LevelInfo,
@@ -136,17 +136,90 @@ func setupLogger() *slog.Logger {
 		opts.Level = slog.LevelDebug
 	}
 
-	if os.Getenv("LOG_FORMAT") == "json" {
+	logFormat := os.Getenv("LOG_FORMAT")
+
+	switch logFormat {
+	case "json":
+		// Full structured JSON output
 		handler = slog.NewJSONHandler(os.Stdout, opts)
-	} else {
+	case "structured":
+		// Full structured text output with timestamps
 		handler = slog.NewTextHandler(os.Stdout, opts)
+	default:
+		// Clean output for CLI usage
+		handler = newCleanHandler(os.Stdout, opts)
 	}
 
 	return slog.New(handler)
 }
 
+// cleanHandler provides simplified logging output for CLI tools
+type cleanHandler struct {
+	opts slog.HandlerOptions
+	w    io.Writer
+}
+
+func newCleanHandler(w io.Writer, opts *slog.HandlerOptions) *cleanHandler {
+	if opts == nil {
+		opts = &slog.HandlerOptions{}
+	}
+	return &cleanHandler{
+		opts: *opts,
+		w:    w,
+	}
+}
+
+func (h *cleanHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	minLevel := slog.LevelInfo
+	if h.opts.Level != nil {
+		minLevel = h.opts.Level.Level()
+	}
+	return level >= minLevel
+}
+
+func (h *cleanHandler) Handle(ctx context.Context, r slog.Record) error {
+	var buf []byte
+
+	// Format based on level
+	switch r.Level {
+	case slog.LevelError:
+		buf = append(buf, "ERROR: "...)
+	case slog.LevelWarn:
+		buf = append(buf, "WARN: "...)
+	case slog.LevelDebug:
+		buf = append(buf, "DEBUG: "...)
+		// INFO level: no prefix, just the message
+	}
+
+	// Add the main message
+	buf = append(buf, r.Message...)
+
+	// Add any attributes
+	r.Attrs(func(a slog.Attr) bool {
+		buf = append(buf, ' ')
+		buf = append(buf, a.Key...)
+		buf = append(buf, '=')
+		buf = append(buf, a.Value.String()...)
+		return true
+	})
+
+	buf = append(buf, '\n')
+	_, err := h.w.Write(buf)
+	return err
+}
+
+func (h *cleanHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	// For simplicity, return same handler (attrs would need to be stored)
+	return h
+}
+
+func (h *cleanHandler) WithGroup(name string) slog.Handler {
+	// For simplicity, return same handler
+	return h
+}
+
 // loadConfig loads configuration from file and environment
-func loadConfig() (*config.Config, error) {
+func loadConfig(logger *slog.Logger) (*config.Config, error) {
 	// Look for config file in standard locations
 	configPaths := []string{
 		os.Getenv("SEEKARR_CONFIG"),
@@ -157,10 +230,13 @@ func loadConfig() (*config.Config, error) {
 	}
 
 	var configPath string
+	// Build list of searched paths (excluding empty ones)
+	var searchedPaths []string
 	for _, path := range configPaths {
 		if path == "" {
 			continue
 		}
+		searchedPaths = append(searchedPaths, path)
 		if _, err := os.Stat(path); err == nil {
 			configPath = path
 			break
@@ -168,17 +244,31 @@ func loadConfig() (*config.Config, error) {
 	}
 
 	if configPath == "" {
-		return nil, fmt.Errorf("no config file found (searched: %v)", configPaths)
+		// Log formatted error message with helpful suggestions
+		logger.Error("configuration file not found")
+		logger.Error("searched locations:")
+		for _, path := range searchedPaths {
+			logger.Error(fmt.Sprintf("  - %s", path))
+		}
+		logger.Error("")
+		logger.Error("to get started:")
+		logger.Error("  1. Copy config.example.yaml to config.yaml")
+		logger.Error("  2. Edit config.yaml with your API keys and paths")
+		logger.Error("  3. Or set SEEKARR_CONFIG environment variable to your config file path")
+		return nil, fmt.Errorf("configuration file not found")
 	}
 
 	// Load and validate config
 	cfg, err := config.Load(configPath)
 	if err != nil {
-		return nil, fmt.Errorf("load config from %s: %w", configPath, err)
+		logger.Error("failed to load configuration file", "path", configPath, "error", err)
+		return nil, err
 	}
 
 	if err := cfg.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid config: %w", err)
+		logger.Error("configuration validation failed", "error", err)
+		logger.Error("please check your config.yaml file for errors")
+		return nil, err
 	}
 
 	return cfg, nil

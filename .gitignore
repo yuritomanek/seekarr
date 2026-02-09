@@ -27,3 +27,4 @@ search_denylist.json
 failure_list.txt
 /implementation
 CLAUDE.md
+.DS_Store
