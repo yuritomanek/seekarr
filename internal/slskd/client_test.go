@@ -45,11 +45,11 @@ func TestSearch(t *testing.T) {
 	client := NewClient(server.URL, "test-key", "/")
 
 	resp, err := client.Search(context.Background(), SearchRequest{
-		SearchText:              "Test Artist Album",
-		SearchTimeout:           5000,
-		FilterResponses:         true,
-		MaximumPeerQueueLength:  50,
-		MinimumPeerUploadSpeed:  0,
+		SearchText:             "Test Artist Album",
+		SearchTimeout:          5000,
+		FilterResponses:        true,
+		MaximumPeerQueueLength: 50,
+		MinimumPeerUploadSpeed: 0,
 	})
 
 	if err != nil {
@@ -264,9 +264,9 @@ func TestGetDownloads(t *testing.T) {
 
 func TestDownloadFileStates(t *testing.T) {
 	tests := []struct {
-		name          string
-		state         string
-		expectError   bool
+		name           string
+		state          string
+		expectError    bool
 		expectComplete bool
 		expectProgress bool
 	}{

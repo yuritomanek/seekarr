@@ -229,6 +229,7 @@ func (p *Processor) filterQueuedAlbums(ctx context.Context, albums []lidarr.Albu
 
 	return filtered, nil
 }
+
 // searchAndQueueDownloads searches for albums and queues downloads
 func (p *Processor) searchAndQueueDownloads(ctx context.Context, albums []lidarr.Album) ([]DownloadedItem, int) {
 	var downloadList []DownloadedItem

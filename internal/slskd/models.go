@@ -4,11 +4,11 @@ import "time"
 
 // SearchRequest represents a search request to Slskd
 type SearchRequest struct {
-	SearchText              string `json:"searchText"`
-	SearchTimeout           int    `json:"searchTimeout"`
-	FilterResponses         bool   `json:"filterResponses"`
-	MaximumPeerQueueLength  int    `json:"maximumPeerQueueLength"`
-	MinimumPeerUploadSpeed  int    `json:"minimumPeerUploadSpeed"`
+	SearchText             string `json:"searchText"`
+	SearchTimeout          int    `json:"searchTimeout"`
+	FilterResponses        bool   `json:"filterResponses"`
+	MaximumPeerQueueLength int    `json:"maximumPeerQueueLength"`
+	MinimumPeerUploadSpeed int    `json:"minimumPeerUploadSpeed"`
 }
 
 // SearchResponse represents a search response from Slskd
@@ -65,8 +65,8 @@ type DownloadsResponse []UserDownloads
 
 // UserDownloads represents downloads for a specific user
 type UserDownloads struct {
-	Username    string                `json:"username"`
-	Directories []DirectoryDownloads  `json:"directories"`
+	Username    string               `json:"username"`
+	Directories []DirectoryDownloads `json:"directories"`
 }
 
 // DirectoryDownloads represents downloads for a directory
@@ -77,11 +77,11 @@ type DirectoryDownloads struct {
 
 // DownloadFile represents a file being downloaded
 type DownloadFile struct {
-	ID               string    `json:"id"`
-	Filename         string    `json:"filename"`
-	State            string    `json:"state"` // "Phase, Status" format
-	BytesTransferred int64     `json:"bytesTransferred"`
-	Size             int64     `json:"size"`
+	ID               string     `json:"id"`
+	Filename         string     `json:"filename"`
+	State            string     `json:"state"` // "Phase, Status" format
+	BytesTransferred int64      `json:"bytesTransferred"`
+	Size             int64      `json:"size"`
 	StartedAt        *time.Time `json:"startedAt,omitempty"`
 	EndedAt          *time.Time `json:"endedAt,omitempty"`
 }

@@ -40,11 +40,11 @@ func NewClient(baseURL, apiKey string) Client {
 
 // GetWantedOptions configures a GetWanted request
 type GetWantedOptions struct {
-	Page      int
-	PageSize  int
-	SortKey   string
-	SortDir   string
-	Missing   bool // true for missing, false for cutoff_unmet
+	Page     int
+	PageSize int
+	SortKey  string
+	SortDir  string
+	Missing  bool // true for missing, false for cutoff_unmet
 }
 
 // GetWanted fetches wanted albums (missing or cutoff unmet)

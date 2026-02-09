@@ -35,10 +35,10 @@ func TestRatio(t *testing.T) {
 	m := NewMatcher(0.8)
 
 	tests := []struct {
-		name      string
-		a         string
-		b         string
-		minRatio  float64
+		name     string
+		a        string
+		b        string
+		minRatio float64
 	}{
 		{"exact match", "hello", "hello", 1.0},
 		{"empty strings", "", "", 1.0},
@@ -165,11 +165,11 @@ func TestMatchTracks(t *testing.T) {
 	m := NewMatcher(0.8)
 
 	tests := []struct {
-		name          string
-		expected      []string
-		actual        []string
-		shouldMatch   bool
-		minAvgRatio   float64
+		name        string
+		expected    []string
+		actual      []string
+		shouldMatch bool
+		minAvgRatio float64
 	}{
 		{
 			name:        "exact matches",

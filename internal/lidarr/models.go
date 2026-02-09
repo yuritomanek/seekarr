@@ -4,12 +4,12 @@ import "time"
 
 // Album represents a Lidarr album
 type Album struct {
-	ID          int      `json:"id"`
-	Title       string   `json:"title"`
-	ArtistID    int      `json:"artistId"`
-	Artist      Artist   `json:"artist"`
-	Releases    []Release `json:"releases"`
-	Monitored   bool     `json:"monitored"`
+	ID        int       `json:"id"`
+	Title     string    `json:"title"`
+	ArtistID  int       `json:"artistId"`
+	Artist    Artist    `json:"artist"`
+	Releases  []Release `json:"releases"`
+	Monitored bool      `json:"monitored"`
 }
 
 // Artist represents a Lidarr artist
@@ -38,11 +38,11 @@ type Medium struct {
 
 // Track represents a music track
 type Track struct {
-	ID                 int    `json:"id"`
-	Title              string `json:"title"`
-	AlbumID            int    `json:"albumId"`
-	MediumNumber       int    `json:"mediumNumber"`
-	AbsoluteTrackNumber int   `json:"absoluteTrackNumber"`
+	ID                  int    `json:"id"`
+	Title               string `json:"title"`
+	AlbumID             int    `json:"albumId"`
+	MediumNumber        int    `json:"mediumNumber"`
+	AbsoluteTrackNumber int    `json:"absoluteTrackNumber"`
 }
 
 // WantedResponse represents paginated wanted albums response
@@ -57,12 +57,12 @@ type WantedResponse struct {
 
 // QueueResponse represents paginated queue response
 type QueueResponse struct {
-	Page          int          `json:"page"`
-	PageSize      int          `json:"pageSize"`
-	SortKey       string       `json:"sortKey"`
-	SortDirection string       `json:"sortDirection"`
-	TotalRecords  int          `json:"totalRecords"`
-	Records       []QueueItem  `json:"records"`
+	Page          int         `json:"page"`
+	PageSize      int         `json:"pageSize"`
+	SortKey       string      `json:"sortKey"`
+	SortDirection string      `json:"sortDirection"`
+	TotalRecords  int         `json:"totalRecords"`
+	Records       []QueueItem `json:"records"`
 }
 
 // QueueItem represents an item in the download queue

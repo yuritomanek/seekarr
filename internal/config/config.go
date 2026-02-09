@@ -12,13 +12,13 @@ import (
 
 // Config holds all application configuration
 type Config struct {
-	Lidarr   LidarrConfig    `yaml:"lidarr"`
-	Slskd    SlskdConfig     `yaml:"slskd"`
-	Release  ReleaseSettings `yaml:"release"`
-	Search   SearchSettings  `yaml:"search"`
+	Lidarr   LidarrConfig     `yaml:"lidarr"`
+	Slskd    SlskdConfig      `yaml:"slskd"`
+	Release  ReleaseSettings  `yaml:"release"`
+	Search   SearchSettings   `yaml:"search"`
 	Download DownloadSettings `yaml:"download"`
-	Timing   TimingSettings  `yaml:"timing"`
-	Logging  LoggingConfig   `yaml:"logging"`
+	Timing   TimingSettings   `yaml:"timing"`
+	Logging  LoggingConfig    `yaml:"logging"`
 }
 
 type LidarrConfig struct {
@@ -314,4 +314,3 @@ logging:
   datefmt: ""
 `
 }
-
