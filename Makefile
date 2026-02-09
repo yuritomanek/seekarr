@@ -1,4 +1,4 @@
-.PHONY: help build test test-coverage test-verbose clean install run fmt lint vet
+.PHONY: help build build-darwin-amd64 build-darwin-arm64 build-linux-amd64 build-linux-arm64 build-all test test-coverage test-verbose clean install run fmt lint vet
 
 # Binary name
 BINARY_NAME=seekarr
@@ -14,9 +14,14 @@ GOVET=$(GOCMD) vet
 
 # Build directory
 BUILD_DIR=.
+DIST_DIR=dist
 
 # Main package path
 MAIN_PATH=./cmd/seekarr
+
+# Version info (can be overridden)
+VERSION?=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+LDFLAGS=-ldflags "-X main.version=$(VERSION)"
 
 # Default target
 .DEFAULT_GOAL := help
@@ -29,8 +34,38 @@ help: ## Show this help message
 
 build: ## Build the binary
 	@echo "Building $(BINARY_NAME)..."
-	$(GOBUILD) -o $(BUILD_DIR)/$(BINARY_NAME) -v $(MAIN_PATH)
+	$(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) -v $(MAIN_PATH)
 	@echo "Build complete: $(BUILD_DIR)/$(BINARY_NAME)"
+
+# Cross-compilation targets
+build-darwin-amd64: ## Build for macOS (Intel)
+	@echo "Building for macOS (Intel)..."
+	@mkdir -p $(DIST_DIR)
+	GOOS=darwin GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(BINARY_NAME)-darwin-amd64 $(MAIN_PATH)
+	@echo "Built: $(DIST_DIR)/$(BINARY_NAME)-darwin-amd64"
+
+build-darwin-arm64: ## Build for macOS (Apple Silicon)
+	@echo "Building for macOS (Apple Silicon)..."
+	@mkdir -p $(DIST_DIR)
+	GOOS=darwin GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(BINARY_NAME)-darwin-arm64 $(MAIN_PATH)
+	@echo "Built: $(DIST_DIR)/$(BINARY_NAME)-darwin-arm64"
+
+build-linux-amd64: ## Build for Linux (x86_64)
+	@echo "Building for Linux (x86_64)..."
+	@mkdir -p $(DIST_DIR)
+	GOOS=linux GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(BINARY_NAME)-linux-amd64 $(MAIN_PATH)
+	@echo "Built: $(DIST_DIR)/$(BINARY_NAME)-linux-amd64"
+
+build-linux-arm64: ## Build for Linux (ARM64)
+	@echo "Building for Linux (ARM64)..."
+	@mkdir -p $(DIST_DIR)
+	GOOS=linux GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(DIST_DIR)/$(BINARY_NAME)-linux-arm64 $(MAIN_PATH)
+	@echo "Built: $(DIST_DIR)/$(BINARY_NAME)-linux-arm64"
+
+build-all: build-darwin-amd64 build-darwin-arm64 build-linux-amd64 build-linux-arm64 ## Build for all platforms
+	@echo ""
+	@echo "All binaries built successfully:"
+	@ls -lh $(DIST_DIR)/
 
 test: ## Run tests
 	@echo "Running tests..."
@@ -57,6 +92,7 @@ bench: ## Run benchmarks
 clean: ## Clean build artifacts
 	@echo "Cleaning..."
 	@rm -f $(BUILD_DIR)/$(BINARY_NAME)
+	@rm -rf $(DIST_DIR)
 	@rm -f coverage.out coverage.html
 	@echo "Clean complete"
 

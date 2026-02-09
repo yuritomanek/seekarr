@@ -1,5 +1,6 @@
 # Binaries
 /seekarr
+dist/
 *.exe
 *.dll
 *.so
