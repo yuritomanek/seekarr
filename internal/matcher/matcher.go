@@ -38,11 +38,13 @@ func (m *Matcher) MatchTracks(expectedTracks []string, actualFiles []string) (bo
 
 	for _, expected := range expectedTracks {
 		bestRatio := 0.0
+		// Strip file extension from expected for consistent comparison
+		expectedNoExt := ExtractFilename(expected)
 
 		for _, actual := range actualFiles {
 			// Strip file extension from actual filename for better matching
 			actualNoExt := ExtractFilename(actual)
-			ratio := m.calculateBestRatio(expected, actualNoExt)
+			ratio := m.calculateBestRatio(expectedNoExt, actualNoExt)
 			if ratio > bestRatio {
 				bestRatio = ratio
 			}
@@ -80,10 +82,12 @@ func (m *Matcher) MatchTracksDebug(expectedTracks []string, actualFiles []string
 	for _, expected := range expectedTracks {
 		bestRatio := 0.0
 		bestMatch := ""
+		// Strip file extension from expected for consistent comparison
+		expectedNoExt := ExtractFilename(expected)
 
 		for _, actual := range actualFiles {
 			actualNoExt := ExtractFilename(actual)
-			ratio := m.calculateBestRatio(expected, actualNoExt)
+			ratio := m.calculateBestRatio(expectedNoExt, actualNoExt)
 			if ratio > bestRatio {
 				bestRatio = ratio
 				bestMatch = actual
