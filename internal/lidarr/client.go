@@ -34,7 +34,7 @@ func NewClient(baseURL, apiKey string) Client {
 	return &client{
 		baseURL:    strings.TrimSuffix(baseURL, "/"),
 		apiKey:     apiKey,
-		httpClient: &http.Client{Timeout: 30 * time.Second},
+		httpClient: &http.Client{Timeout: 5 * time.Minute}, // Longer timeout for import scans
 	}
 }
 

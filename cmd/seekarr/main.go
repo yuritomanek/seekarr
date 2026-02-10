@@ -43,7 +43,7 @@ func run() int {
 		"search_type", cfg.Search.SearchType)
 
 	// Acquire lock file to prevent concurrent runs
-	lockPath := filepath.Join(cfg.Lidarr.DownloadDir, ".seekarr.lock")
+	lockPath := filepath.Join(cfg.Slskd.DownloadDir, ".seekarr.lock")
 	lockFile := state.NewLockFile(lockPath)
 
 	if err := lockFile.Acquire(); err != nil {

@@ -73,14 +73,13 @@ type QueueItem struct {
 	Status  string `json:"status"`
 }
 
-// Command represents a Lidarr command request/response
+// Command represents a Lidarr command request
+// For requests, parameters should be at the top level (not in body)
 type Command struct {
-	ID          int                    `json:"id,omitempty"`
-	Name        string                 `json:"name"`
-	CommandName string                 `json:"commandName,omitempty"`
-	Message     string                 `json:"message,omitempty"`
-	Status      string                 `json:"status,omitempty"`
-	Body        map[string]interface{} `json:"body,omitempty"`
+	Name string `json:"name"`
+	// Path is used for DownloadedAlbumsScan command
+	Path string `json:"path,omitempty"`
+	// Additional parameters can be added as needed
 }
 
 // CommandResponse represents a command status response

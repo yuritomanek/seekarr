@@ -76,30 +76,61 @@ func (o *Organizer) organizeAlbum(album DownloadedAlbum) error {
 	return o.organizeSingleDisc(album, sanitizedArtist)
 }
 
-// organizeSingleDisc renames the folder to the sanitized artist name
+// organizeSingleDisc organizes single-disc album into Artist/Album structure
 func (o *Organizer) organizeSingleDisc(album DownloadedAlbum, sanitizedArtist string) error {
-	oldPath := filepath.Join(o.downloadDir, album.FolderPath)
-	newPath := filepath.Join(o.downloadDir, sanitizedArtist)
+	folderPath := filepath.Join(o.downloadDir, album.FolderPath)
+	sanitizedAlbum := matcher.SanitizeFolderName(album.AlbumName)
 
 	// Check if source exists
-	if _, err := os.Stat(oldPath); os.IsNotExist(err) {
-		return fmt.Errorf("source folder does not exist: %s", oldPath)
+	if _, err := os.Stat(folderPath); os.IsNotExist(err) {
+		return fmt.Errorf("source folder does not exist: %s", folderPath)
 	}
 
-	// If already at correct name, skip
-	if oldPath == newPath {
-		o.logger.Info("folder already correctly named", "path", newPath)
+	// Step 1: Tag all files with metadata (important for Lidarr matching)
+	for _, track := range album.Tracks {
+		filePath := filepath.Join(folderPath, track.Filename)
+
+		// Check if file exists before trying to tag (some files may have failed to download)
+		if _, err := os.Stat(filePath); os.IsNotExist(err) {
+			o.logger.Debug("skipping tag for non-existent file", "file", track.Filename)
+			continue
+		}
+
+		if err := o.tagFile(filePath, album.ArtistName, album.AlbumName, track.MediumNumber); err != nil {
+			o.logger.Warn("failed to tag file",
+				"file", track.Filename,
+				"error", err)
+			// Continue with other files even if one fails
+		}
+	}
+
+	// Step 2: Create Artist/Album structure
+	artistDir := filepath.Join(o.downloadDir, sanitizedArtist)
+	albumDir := filepath.Join(artistDir, sanitizedAlbum)
+
+	// If already at correct path, skip move
+	if folderPath == albumDir {
+		o.logger.Info("folder already correctly organized", "path", albumDir)
 		return nil
 	}
 
-	// Handle collision: If target exists, try appending counter
-	if _, err := os.Stat(newPath); err == nil {
-		newPath = o.findAvailablePath(newPath)
+	// Create artist directory if needed
+	if err := os.MkdirAll(artistDir, 0755); err != nil {
+		return fmt.Errorf("create artist directory: %w", err)
 	}
 
-	o.logger.Info("renaming folder", "from", oldPath, "to", newPath)
-	if err := os.Rename(oldPath, newPath); err != nil {
-		return fmt.Errorf("rename folder: %w", err)
+	// Handle collision
+	targetPath := albumDir
+	if _, err := os.Stat(targetPath); err == nil {
+		targetPath = o.findAvailablePath(targetPath)
+	}
+
+	o.logger.Info("organizing single-disc album",
+		"from", folderPath,
+		"to", targetPath)
+
+	if err := os.Rename(folderPath, targetPath); err != nil {
+		return fmt.Errorf("move to album directory: %w", err)
 	}
 
 	return nil
@@ -113,6 +144,13 @@ func (o *Organizer) organizeMultiDisc(album DownloadedAlbum, sanitizedArtist str
 	// Step 1: Tag all files with metadata
 	for _, track := range album.Tracks {
 		filePath := filepath.Join(folderPath, track.Filename)
+
+		// Check if file exists before trying to tag (some files may have failed to download)
+		if _, err := os.Stat(filePath); os.IsNotExist(err) {
+			o.logger.Debug("skipping tag for non-existent file", "file", track.Filename)
+			continue
+		}
+
 		if err := o.tagFile(filePath, album.ArtistName, album.AlbumName, track.MediumNumber); err != nil {
 			o.logger.Warn("failed to tag file",
 				"file", track.Filename,
@@ -209,6 +247,20 @@ func (o *Organizer) tagWithFFmpeg(filePath, artist, album string, discNumber int
 	// Create temporary output file
 	tmpFile := filePath + ".tmp"
 
+	// Detect format from file extension for ffmpeg
+	ext := strings.ToLower(filepath.Ext(filePath))
+	var format string
+	switch ext {
+	case ".flac":
+		format = "flac"
+	case ".mp3":
+		format = "mp3"
+	case ".m4a":
+		format = "mp4"
+	default:
+		format = "" // Let ffmpeg auto-detect
+	}
+
 	// Build ffmpeg command
 	args := []string{
 		"-i", filePath,
@@ -221,6 +273,11 @@ func (o *Organizer) tagWithFFmpeg(filePath, artist, album string, discNumber int
 
 	if discNumber > 0 {
 		args = append(args, "-metadata", fmt.Sprintf("disc=%d", discNumber))
+	}
+
+	// Explicitly set output format if detected
+	if format != "" {
+		args = append(args, "-f", format)
 	}
 
 	args = append(args, "-y", tmpFile)

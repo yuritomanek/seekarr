@@ -599,7 +599,7 @@ func (p *Processor) searchForAlbum(ctx context.Context, query string, tracks []l
 					ArtistName:  album.Artist.ArtistName,
 					AlbumName:   album.Title,
 					AlbumID:     album.ID,
-					FolderName:  filepath.Base(dir),
+					FolderName:  filepath.Join(result.Username, dir),
 					Username:    result.Username,
 					Directory:   dir,
 					MediumCount: release.MediumCount,
@@ -892,7 +892,9 @@ func (p *Processor) triggerImport(ctx context.Context, downloadList []Downloaded
 
 		cmd := lidarr.Command{
 			Name: "DownloadedAlbumsScan",
-			Path: path,
+			Body: map[string]interface{}{
+				"path": path,
+			},
 		}
 
 		resp, err := p.lidarr.PostCommand(ctx, cmd)
@@ -941,12 +943,11 @@ func (p *Processor) pollImportCompletion(ctx context.Context, commandIDs []int) 
 				p.logger.Info("import command finished",
 					"commandID", id,
 					"status", cmd.Status,
-					"message", cmd.Message,
-					"body", cmd.Body)
+					"message", cmd.Message)
 
 				if strings.Contains(strings.ToLower(cmd.Message), "failed") {
 					// TODO: Move to failed imports
-					p.logger.Warn("import failed", "commandID", id, "body", cmd.Body)
+					p.logger.Warn("import failed", "commandID", id)
 				}
 
 				delete(pending, id)
