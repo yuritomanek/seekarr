@@ -778,26 +778,26 @@ func (p *Processor) monitorDownloads(ctx context.Context, downloadList []Downloa
 							"inProgress", len(inProgressFiles))
 						unfinished++
 					} else {
-					// All files done - import any successful tracks
-					// Lidarr will track what's still missing for the next run
-					if len(completedFiles) > 0 {
-						totalFiles := len(completedFiles) + len(erroredFiles)
-						successRate := float64(len(completedFiles)) / float64(totalFiles)
-						p.logger.Warn("max retries exceeded, importing partial album",
-							"directory", item.Directory,
-							"retries", retryCount[idx],
-							"completed", len(completedFiles),
-							"failed", len(erroredFiles),
-							"successRate", fmt.Sprintf("%.0f%%", successRate*100))
-						succeeded[idx] = true
-					} else {
-						// No files succeeded at all
-						p.logger.Error("giving up after max retries - no files succeeded",
-							"directory", item.Directory,
-							"retries", retryCount[idx])
+						// All files done - import any successful tracks
+						// Lidarr will track what's still missing for the next run
+						if len(completedFiles) > 0 {
+							totalFiles := len(completedFiles) + len(erroredFiles)
+							successRate := float64(len(completedFiles)) / float64(totalFiles)
+							p.logger.Warn("max retries exceeded, importing partial album",
+								"directory", item.Directory,
+								"retries", retryCount[idx],
+								"completed", len(completedFiles),
+								"failed", len(erroredFiles),
+								"successRate", fmt.Sprintf("%.0f%%", successRate*100))
+							succeeded[idx] = true
+						} else {
+							// No files succeeded at all
+							p.logger.Error("giving up after max retries - no files succeeded",
+								"directory", item.Directory,
+								"retries", retryCount[idx])
+						}
+						pending[idx] = false
 					}
-					pending[idx] = false
-				}
 				}
 			} else if len(inProgressFiles) > 0 {
 				// Still downloading

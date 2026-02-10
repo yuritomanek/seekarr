@@ -153,12 +153,12 @@ func (f *Filter) FilterFilesDebug(files []slskd.SearchFile) ([]slskd.SearchFile,
 		}
 
 		info := FileFilterInfo{
-			Filename:  filepath.Base(file.Filename),
-			Extension: ext,
-			BitRate:   file.BitRate,
+			Filename:   filepath.Base(file.Filename),
+			Extension:  ext,
+			BitRate:    file.BitRate,
 			SampleRate: file.SampleRate,
-			BitDepth:  file.BitDepth,
-			Matched:   matched,
+			BitDepth:   file.BitDepth,
+			Matched:    matched,
 		}
 		filterInfo = append(filterInfo, info)
 	}
