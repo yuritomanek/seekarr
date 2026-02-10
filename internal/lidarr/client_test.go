@@ -202,9 +202,7 @@ func TestPostCommand(t *testing.T) {
 
 	resp, err := client.PostCommand(context.Background(), Command{
 		Name: "DownloadedAlbumsScan",
-		Body: map[string]interface{}{
-			"path": "/downloads/Artist",
-		},
+		Path: "/downloads/Artist",
 	})
 
 	if err != nil {

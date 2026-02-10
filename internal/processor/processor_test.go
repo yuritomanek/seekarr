@@ -68,7 +68,7 @@ func (m *mockSlskdClient) GetDirectory(ctx context.Context, username, directory 
 	return &slskd.Directory{}, nil
 }
 
-func (m *mockSlskdClient) EnqueueDownloads(ctx context.Context, username string, files []string) error {
+func (m *mockSlskdClient) EnqueueDownloads(ctx context.Context, username string, files []slskd.EnqueueFile) error {
 	return nil
 }
 

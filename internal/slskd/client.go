@@ -19,7 +19,7 @@ type Client interface {
 	GetSearchResults(ctx context.Context, searchID string) ([]SearchResult, error)
 	DeleteSearch(ctx context.Context, searchID string) error
 	GetDirectory(ctx context.Context, username, directory string) (*Directory, error)
-	EnqueueDownloads(ctx context.Context, username string, files []string) error
+	EnqueueDownloads(ctx context.Context, username string, files []EnqueueFile) error
 	GetDownloads(ctx context.Context) (DownloadsResponse, error)
 	GetUserDownloads(ctx context.Context, username string) (*UserDownloads, error)
 	CancelDownload(ctx context.Context, username, downloadID string) error
@@ -51,12 +51,44 @@ func NewClient(baseURL, apiKey, urlBase string) Client {
 func (c *client) GetVersion(ctx context.Context) (string, error) {
 	endpoint := "/api/v0/application/version"
 
-	var response VersionResponse
-	if err := c.doRequest(ctx, "GET", endpoint, nil, nil, &response); err != nil {
-		return "", fmt.Errorf("get version: %w", err)
+	// Construct URL
+	fullPath := endpoint
+	if c.urlBase != "" && c.urlBase != "/" {
+		fullPath = "/" + c.urlBase + endpoint
 	}
 
-	return response.Version, nil
+	u, err := url.Parse(c.baseURL + fullPath)
+	if err != nil {
+		return "", fmt.Errorf("parse url: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", u.String(), nil)
+	if err != nil {
+		return "", fmt.Errorf("create request: %w", err)
+	}
+
+	req.Header.Set("X-API-Key", c.apiKey)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("do request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	// Read response as plain string
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("read response: %w", err)
+	}
+
+	// Trim quotes if present
+	version := strings.Trim(string(bodyBytes), "\"")
+	return version, nil
 }
 
 // Search executes a search on Slskd
@@ -124,15 +156,11 @@ func (c *client) GetDirectory(ctx context.Context, username, directory string) (
 }
 
 // EnqueueDownloads enqueues files for download from a user
-func (c *client) EnqueueDownloads(ctx context.Context, username string, files []string) error {
-	endpoint := "/api/v0/transfers/downloads"
+func (c *client) EnqueueDownloads(ctx context.Context, username string, files []EnqueueFile) error {
+	endpoint := fmt.Sprintf("/api/v0/transfers/downloads/%s", username)
 
-	req := EnqueueRequest{
-		Username: username,
-		Files:    files,
-	}
-
-	if err := c.doRequest(ctx, "POST", endpoint, nil, req, nil); err != nil {
+	// Body should be an array of objects with filename and size
+	if err := c.doRequest(ctx, "POST", endpoint, nil, files, nil); err != nil {
 		return fmt.Errorf("enqueue downloads for %s: %w", username, err)
 	}
 

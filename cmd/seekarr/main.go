@@ -43,7 +43,7 @@ func run() int {
 		"search_type", cfg.Search.SearchType)
 
 	// Acquire lock file to prevent concurrent runs
-	lockPath := filepath.Join(cfg.Lidarr.DownloadDir, ".seekarr.lock")
+	lockPath := filepath.Join(cfg.Slskd.DownloadDir, ".seekarr.lock")
 	lockFile := state.NewLockFile(lockPath)
 
 	if err := lockFile.Acquire(); err != nil {
@@ -131,8 +131,8 @@ func setupLogger() *slog.Logger {
 		Level: slog.LevelInfo,
 	}
 
-	// Check for debug mode
-	if os.Getenv("DEBUG") == "true" {
+	// Check for debug mode via DEBUG or LOG_LEVEL env vars
+	if os.Getenv("DEBUG") == "true" || os.Getenv("LOG_LEVEL") == "DEBUG" {
 		opts.Level = slog.LevelDebug
 	}
 

@@ -39,10 +39,11 @@ func TestOrganizeSingleDisc(t *testing.T) {
 		t.Fatalf("OrganizeAlbums() error: %v", err)
 	}
 
-	// Verify folder was renamed
-	expectedPath := filepath.Join(tmpDir, "Test Artist")
-	if _, err := os.Stat(expectedPath); os.IsNotExist(err) {
-		t.Errorf("expected folder not found: %s", expectedPath)
+	// Verify Artist/Album folder structure was created
+	expectedArtistPath := filepath.Join(tmpDir, "Test Artist")
+	expectedAlbumPath := filepath.Join(expectedArtistPath, "Test Album")
+	if _, err := os.Stat(expectedAlbumPath); os.IsNotExist(err) {
+		t.Errorf("expected album folder not found: %s", expectedAlbumPath)
 	}
 
 	// Verify old folder is gone
@@ -51,7 +52,7 @@ func TestOrganizeSingleDisc(t *testing.T) {
 	}
 
 	// Verify file still exists in new location
-	expectedFile := filepath.Join(expectedPath, "track.flac")
+	expectedFile := filepath.Join(expectedAlbumPath, "track.flac")
 	if _, err := os.Stat(expectedFile); os.IsNotExist(err) {
 		t.Errorf("file not found in new location: %s", expectedFile)
 	}
@@ -60,10 +61,11 @@ func TestOrganizeSingleDisc(t *testing.T) {
 func TestOrganizeSingleDisc_Collision(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	// Create existing artist folder
-	existingPath := filepath.Join(tmpDir, "Test Artist")
-	if err := os.Mkdir(existingPath, 0755); err != nil {
-		t.Fatalf("failed to create existing folder: %v", err)
+	// Create existing Artist/Album folder to cause collision
+	existingArtistPath := filepath.Join(tmpDir, "Test Artist")
+	existingAlbumPath := filepath.Join(existingArtistPath, "Test Album")
+	if err := os.MkdirAll(existingAlbumPath, 0755); err != nil {
+		t.Fatalf("failed to create existing album folder: %v", err)
 	}
 
 	// Create test folder to organize
@@ -86,15 +88,15 @@ func TestOrganizeSingleDisc_Collision(t *testing.T) {
 		t.Fatalf("OrganizeAlbums() error: %v", err)
 	}
 
-	// Verify folder was renamed with collision suffix
-	expectedPath := filepath.Join(tmpDir, "Test Artist_1")
+	// Verify album folder was created with collision suffix
+	expectedPath := filepath.Join(tmpDir, "Test Artist", "Test Album_1")
 	if _, err := os.Stat(expectedPath); os.IsNotExist(err) {
-		t.Errorf("expected folder with collision suffix not found: %s", expectedPath)
+		t.Errorf("expected album folder with collision suffix not found: %s", expectedPath)
 	}
 
-	// Verify original folder still exists
-	if _, err := os.Stat(existingPath); os.IsNotExist(err) {
-		t.Errorf("original folder was removed: %s", existingPath)
+	// Verify original album folder still exists
+	if _, err := os.Stat(existingAlbumPath); os.IsNotExist(err) {
+		t.Errorf("original album folder was removed: %s", existingAlbumPath)
 	}
 }
 

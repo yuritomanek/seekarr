@@ -60,6 +60,12 @@ type EnqueueRequest struct {
 	Files    []string `json:"files"`
 }
 
+// EnqueueFile represents a file to enqueue for download
+type EnqueueFile struct {
+	Filename string `json:"filename"`
+	Size     int64  `json:"size"`
+}
+
 // DownloadsResponse represents the downloads grouped by username
 type DownloadsResponse []UserDownloads
 

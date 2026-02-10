@@ -171,7 +171,7 @@ func TestGetDirectory(t *testing.T) {
 
 func TestEnqueueDownloads(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/v0/transfers/downloads" {
+		if r.URL.Path != "/api/v0/transfers/downloads/user1" {
 			t.Errorf("unexpected path: %s", r.URL.Path)
 		}
 
@@ -179,17 +179,21 @@ func TestEnqueueDownloads(t *testing.T) {
 			t.Errorf("expected POST, got %s", r.Method)
 		}
 
-		var req EnqueueRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		var files []EnqueueFile
+		if err := json.NewDecoder(r.Body).Decode(&files); err != nil {
 			t.Fatalf("failed to decode request: %v", err)
 		}
 
-		if req.Username != "user1" {
-			t.Errorf("expected username 'user1', got %q", req.Username)
+		if len(files) != 2 {
+			t.Errorf("expected 2 files, got %d", len(files))
 		}
 
-		if len(req.Files) != 2 {
-			t.Errorf("expected 2 files, got %d", len(req.Files))
+		if files[0].Filename != "Artist\\Album\\01 Track.flac" {
+			t.Errorf("expected filename 'Artist\\Album\\01 Track.flac', got %q", files[0].Filename)
+		}
+
+		if files[0].Size != 12345 {
+			t.Errorf("expected size 12345, got %d", files[0].Size)
 		}
 
 		w.WriteHeader(http.StatusOK)
@@ -198,9 +202,9 @@ func TestEnqueueDownloads(t *testing.T) {
 
 	client := NewClient(server.URL, "test-key", "/")
 
-	err := client.EnqueueDownloads(context.Background(), "user1", []string{
-		"Artist\\Album\\01 Track.flac",
-		"Artist\\Album\\02 Track.flac",
+	err := client.EnqueueDownloads(context.Background(), "user1", []EnqueueFile{
+		{Filename: "Artist\\Album\\01 Track.flac", Size: 12345},
+		{Filename: "Artist\\Album\\02 Track.flac", Size: 67890},
 	})
 
 	if err != nil {
@@ -306,7 +310,8 @@ func TestClientWithURLBase(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(VersionResponse{Version: "0.22.3"})
+		// Return plain string like the real API does
+		w.Write([]byte(`"0.22.3"`))
 	}))
 	defer server.Close()
 
