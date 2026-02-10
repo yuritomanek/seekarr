@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/yuritomanek/seekarr/internal/config"
+	"github.com/yuritomanek/seekarr/internal/filter"
 	"github.com/yuritomanek/seekarr/internal/lidarr"
 	"github.com/yuritomanek/seekarr/internal/matcher"
 	"github.com/yuritomanek/seekarr/internal/organizer"
@@ -22,6 +23,7 @@ type Processor struct {
 	lidarr    lidarr.Client // Interface, not pointer to interface
 	slskd     slskd.Client  // Interface, not pointer to interface
 	matcher   *matcher.Matcher
+	filter    *filter.Filter
 	organizer *organizer.Organizer
 	denylist  *state.Denylist
 	pageTrack *state.PageTracker
@@ -40,6 +42,25 @@ type DownloadedItem struct {
 	Tracks      []organizer.DownloadedTrack
 }
 
+// countMatched counts how many tracks matched in match info
+func countMatched(info []matcher.TrackMatchInfo) int {
+	count := 0
+	for _, i := range info {
+		if i.Matched {
+			count++
+		}
+	}
+	return count
+}
+
+// formatOptionalInt formats an optional int pointer for logging
+func formatOptionalInt(val *int) string {
+	if val == nil {
+		return "N/A"
+	}
+	return fmt.Sprintf("%d", *val)
+}
+
 // NewProcessor creates a new processor with all dependencies
 func NewProcessor(
 	cfg *config.Config,
@@ -53,6 +74,7 @@ func NewProcessor(
 
 	// Initialize components
 	m := matcher.NewMatcher(cfg.Search.MinimumFilenameMatchRatio)
+	f := filter.NewFilter(cfg.Search.AllowedFiletypes)
 	org := organizer.NewOrganizer(cfg.Slskd.DownloadDir, logger)
 
 	// Initialize state management
@@ -73,6 +95,7 @@ func NewProcessor(
 		lidarr:    lidarrClient,
 		slskd:     slskdClient,
 		matcher:   m,
+		filter:    f,
 		organizer: org,
 		denylist:  denylist,
 		pageTrack: pageTrack,
@@ -368,42 +391,144 @@ func (p *Processor) searchForAlbum(ctx context.Context, query string, tracks []l
 		return DownloadedItem{}, false
 	}
 
-	// Wait for search to complete
-	time.Sleep(time.Duration(p.cfg.Timing.SearchWaitSeconds) * time.Second)
+	p.logger.Debug("search initiated", "searchID", searchResp.ID, "state", searchResp.State)
+
+	// Delete search when done if configured
+	if p.cfg.Slskd.DeleteSearches {
+		defer func() {
+			if err := p.slskd.DeleteSearch(ctx, searchResp.ID); err != nil {
+				p.logger.Debug("failed to delete search", "searchID", searchResp.ID, "error", err)
+			}
+		}()
+	}
+
+	// Wait for search to complete by polling state
+	maxWaitTime := time.Duration(p.cfg.Timing.SearchWaitSeconds) * time.Second
+	pollInterval := 500 * time.Millisecond
+	startTime := time.Now()
+
+	for {
+		state, err := p.slskd.GetSearchState(ctx, searchResp.ID)
+		if err != nil {
+			p.logger.Warn("failed to get search state", "searchID", searchResp.ID, "error", err)
+			break
+		}
+
+		p.logger.Debug("search state", "searchID", searchResp.ID, "state", state.State)
+
+		if strings.HasPrefix(state.State, "Completed") {
+			break
+		}
+
+		if time.Since(startTime) >= maxWaitTime {
+			p.logger.Debug("search timeout reached", "searchID", searchResp.ID, "elapsed", time.Since(startTime))
+			break
+		}
+
+		time.Sleep(pollInterval)
+	}
 
 	// Get search results
 	results, err := p.slskd.GetSearchResults(ctx, searchResp.ID)
 	if err != nil {
-		p.logger.Warn("failed to get search results", "error", err)
+		p.logger.Warn("failed to get search results", "searchID", searchResp.ID, "error", err)
 		return DownloadedItem{}, false
 	}
 
+	p.logger.Debug("fetched search results", "searchID", searchResp.ID, "results", len(results))
+
 	if len(results) == 0 {
-		p.logger.Debug("no search results")
+		p.logger.Debug("no search results", "searchID", searchResp.ID)
 		return DownloadedItem{}, false
 	}
 
 	p.logger.Debug("processing search results", "results", len(results))
 
-	// Build expected track list
+	// Build expected track list (without extensions - matcher will handle file format variations)
 	expectedTracks := make([]string, len(tracks))
 	for i, track := range tracks {
-		expectedTracks[i] = track.Title + ".flac" // TODO: Support other formats
+		expectedTracks[i] = track.Title
 	}
 
 	// Try to match results
 	for _, result := range results {
+		p.logger.Debug("processing result",
+			"username", result.Username,
+			"totalFiles", len(result.Files))
+
+		// Filter files by allowed filetypes first
+		filteredFiles, filterInfo := p.filter.FilterFilesDebug(result.Files)
+
+		// Log sample of filtered files (first 5)
+		sampleSize := 5
+		if len(filterInfo) < sampleSize {
+			sampleSize = len(filterInfo)
+		}
+		for i := 0; i < sampleSize; i++ {
+			info := filterInfo[i]
+			p.logger.Debug("file filter",
+				"username", result.Username,
+				"file", info.Filename,
+				"ext", info.Extension,
+				"bitrate", formatOptionalInt(info.BitRate),
+				"sampleRate", formatOptionalInt(info.SampleRate),
+				"bitDepth", formatOptionalInt(info.BitDepth),
+				"matched", info.Matched)
+		}
+
+		p.logger.Debug("filtered by filetype",
+			"username", result.Username,
+			"before", len(result.Files),
+			"after", len(filteredFiles),
+			"allowedTypes", strings.Join(p.cfg.Search.AllowedFiletypes, ", "))
+
+		if len(filteredFiles) == 0 {
+			p.logger.Debug("skipping user - no files match allowed filetypes",
+				"username", result.Username)
+			continue
+		}
+
 		// Group files by directory
 		dirFiles := make(map[string][]string)
-		for _, file := range result.Files {
+		for _, file := range filteredFiles {
 			dir := filepath.Dir(file.Filename)
 			filename := filepath.Base(file.Filename)
 			dirFiles[dir] = append(dirFiles[dir], filename)
 		}
 
+		p.logger.Debug("grouped into directories",
+			"username", result.Username,
+			"directories", len(dirFiles))
+
 		// Check each directory for matches
 		for dir, files := range dirFiles {
-			matched, ratio := p.matcher.MatchTracks(expectedTracks, files)
+			p.logger.Debug("checking directory",
+				"username", result.Username,
+				"directory", dir,
+				"files", len(files),
+				"expectedTracks", len(expectedTracks))
+
+			// Use debug matcher to get detailed match info
+			matched, ratio, matchInfo := p.matcher.MatchTracksDebug(expectedTracks, files)
+
+			// Log each track match attempt
+			for _, info := range matchInfo {
+				p.logger.Debug("track match",
+					"expected", info.ExpectedTrack,
+					"bestMatch", info.BestMatch,
+					"ratio", fmt.Sprintf("%.2f", info.BestRatio),
+					"matched", info.Matched,
+					"threshold", p.cfg.Search.MinimumFilenameMatchRatio)
+			}
+
+			p.logger.Debug("directory match result",
+				"username", result.Username,
+				"directory", dir,
+				"matched", matched,
+				"avgRatio", fmt.Sprintf("%.2f", ratio),
+				"matchedTracks", countMatched(matchInfo),
+				"totalTracks", len(expectedTracks))
+
 			if matched {
 				p.logger.Info("found match",
 					"username", result.Username,
@@ -411,16 +536,19 @@ func (p *Processor) searchForAlbum(ctx context.Context, query string, tracks []l
 					"ratio", fmt.Sprintf("%.2f", ratio),
 					"files", len(files))
 
-				// Build file paths to download
-				var filePaths []string
-				for _, file := range result.Files {
+				// Build file objects to download (from filtered files)
+				var enqueueFiles []slskd.EnqueueFile
+				for _, file := range filteredFiles {
 					if filepath.Dir(file.Filename) == dir {
-						filePaths = append(filePaths, file.Filename)
+						enqueueFiles = append(enqueueFiles, slskd.EnqueueFile{
+							Filename: file.Filename,
+							Size:     file.Size,
+						})
 					}
 				}
 
 				// Enqueue downloads
-				if err := p.slskd.EnqueueDownloads(ctx, result.Username, filePaths); err != nil {
+				if err := p.slskd.EnqueueDownloads(ctx, result.Username, enqueueFiles); err != nil {
 					p.logger.Warn("failed to enqueue downloads", "error", err)
 					continue
 				}
@@ -436,12 +564,31 @@ func (p *Processor) searchForAlbum(ctx context.Context, query string, tracks []l
 					MediumCount: release.MediumCount,
 				}
 
-				// Build track list with disc numbers
+				// Build track list from actual downloaded files
+				// Map track titles to their medium numbers for lookup
+				trackMediums := make(map[string]int)
 				for _, track := range tracks {
-					item.Tracks = append(item.Tracks, organizer.DownloadedTrack{
-						Filename:     track.Title + ".flac",
-						MediumNumber: track.MediumNumber,
-					})
+					trackMediums[strings.ToLower(track.Title)] = track.MediumNumber
+				}
+
+				for _, file := range filteredFiles {
+					if filepath.Dir(file.Filename) == dir {
+						filename := filepath.Base(file.Filename)
+						// Try to determine medium number by matching filename to track title
+						mediumNum := 1 // Default to disc 1
+						filenameNoExt := matcher.ExtractFilename(filename)
+						for title, medium := range trackMediums {
+							if strings.Contains(strings.ToLower(filenameNoExt), title) {
+								mediumNum = medium
+								break
+							}
+						}
+
+						item.Tracks = append(item.Tracks, organizer.DownloadedTrack{
+							Filename:     filename,
+							MediumNumber: mediumNum,
+						})
+					}
 				}
 
 				return item, true

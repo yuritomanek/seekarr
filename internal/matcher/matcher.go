@@ -40,7 +40,9 @@ func (m *Matcher) MatchTracks(expectedTracks []string, actualFiles []string) (bo
 		bestRatio := 0.0
 
 		for _, actual := range actualFiles {
-			ratio := m.calculateBestRatio(expected, actual)
+			// Strip file extension from actual filename for better matching
+			actualNoExt := ExtractFilename(actual)
+			ratio := m.calculateBestRatio(expected, actualNoExt)
 			if ratio > bestRatio {
 				bestRatio = ratio
 			}
@@ -58,6 +60,64 @@ func (m *Matcher) MatchTracks(expectedTracks []string, actualFiles []string) (bo
 	}
 
 	return false, 0.0
+}
+
+// MatchTracksDebug is like MatchTracks but returns detailed match information
+func (m *Matcher) MatchTracksDebug(expectedTracks []string, actualFiles []string) (bool, float64, []TrackMatchInfo) {
+	var matchInfo []TrackMatchInfo
+
+	if len(expectedTracks) == 0 || len(actualFiles) == 0 {
+		return false, 0.0, matchInfo
+	}
+
+	if len(actualFiles) < len(expectedTracks) {
+		return false, 0.0, matchInfo
+	}
+
+	matched := 0
+	totalRatio := 0.0
+
+	for _, expected := range expectedTracks {
+		bestRatio := 0.0
+		bestMatch := ""
+
+		for _, actual := range actualFiles {
+			actualNoExt := ExtractFilename(actual)
+			ratio := m.calculateBestRatio(expected, actualNoExt)
+			if ratio > bestRatio {
+				bestRatio = ratio
+				bestMatch = actual
+			}
+		}
+
+		info := TrackMatchInfo{
+			ExpectedTrack: expected,
+			BestMatch:     bestMatch,
+			BestRatio:     bestRatio,
+			Matched:       bestRatio >= m.minRatio,
+		}
+		matchInfo = append(matchInfo, info)
+
+		if bestRatio >= m.minRatio {
+			matched++
+			totalRatio += bestRatio
+		}
+	}
+
+	if matched == len(expectedTracks) {
+		avgRatio := totalRatio / float64(len(expectedTracks))
+		return true, avgRatio, matchInfo
+	}
+
+	return false, 0.0, matchInfo
+}
+
+// TrackMatchInfo contains debug information about track matching
+type TrackMatchInfo struct {
+	ExpectedTrack string
+	BestMatch     string
+	BestRatio     float64
+	Matched       bool
 }
 
 // calculateBestRatio tries multiple matching strategies and returns the best ratio
