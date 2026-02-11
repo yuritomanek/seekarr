@@ -79,10 +79,10 @@ type TimingSettings struct {
 }
 
 type DaemonSettings struct {
-	Enabled              bool `yaml:"enabled"`
-	IntervalMinutes      int  `yaml:"interval_minutes"`
-	DeleteAfterImport    bool `yaml:"delete_after_import"`
-	CleanupDelaySeconds  int  `yaml:"cleanup_delay_seconds"`
+	Enabled             bool `yaml:"enabled"`
+	IntervalMinutes     int  `yaml:"interval_minutes"`
+	DeleteAfterImport   bool `yaml:"delete_after_import"`
+	CleanupDelaySeconds int  `yaml:"cleanup_delay_seconds"`
 }
 
 type LoggingConfig struct {
