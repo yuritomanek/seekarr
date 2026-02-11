@@ -339,3 +339,104 @@ func TestFindAvailablePath(t *testing.T) {
 		t.Errorf("findAvailablePath() = %s, want %s", availablePath, expectedPath)
 	}
 }
+
+func TestNewOrganizer_NilLogger(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Test with nil logger - should use default
+	org := NewOrganizer(tmpDir, nil)
+	if org == nil {
+		t.Fatal("NewOrganizer() returned nil")
+	}
+	if org.logger == nil {
+		t.Error("logger should not be nil when created with nil logger")
+	}
+}
+
+func TestTagFile_DifferentFormats(t *testing.T) {
+	tmpDir := t.TempDir()
+	org := NewOrganizer(tmpDir, slog.Default())
+
+	tests := []struct {
+		name     string
+		filename string
+		ext      string
+	}{
+		{"mp3 file", "test.mp3", ".mp3"},
+		{"flac file", "test.flac", ".flac"},
+		{"m4a file", "test.m4a", ".m4a"},
+		{"unsupported format", "test.wav", ".wav"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create dummy file
+			filePath := filepath.Join(tmpDir, tt.filename)
+			if err := os.WriteFile(filePath, []byte("dummy audio data"), 0644); err != nil {
+				t.Fatalf("failed to create test file: %v", err)
+			}
+
+			// Try to tag - should not crash even if ffmpeg fails or format is unsupported
+			err := org.tagFile(filePath, "Test Artist", "Test Album", 1)
+
+			// For unsupported formats, should return nil
+			if tt.ext == ".wav" && err != nil {
+				t.Errorf("tagFile() should not error on unsupported format, got: %v", err)
+			}
+		})
+	}
+}
+
+func TestOrganizeAlbums_Error(t *testing.T) {
+	tmpDir := t.TempDir()
+	org := NewOrganizer(tmpDir, slog.Default())
+
+	// Try to organize album with non-existent folder
+	album := DownloadedAlbum{
+		ArtistName:  "Test Artist",
+		AlbumName:   "Test Album",
+		FolderPath:  "NonExistentFolder",
+		MediumCount: 1,
+	}
+
+	err := org.OrganizeAlbums([]DownloadedAlbum{album})
+	if err == nil {
+		t.Error("expected error for non-existent folder")
+	}
+}
+
+func TestOrganizeSingleDisc_AlreadyOrganized(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create already properly organized structure
+	artistDir := filepath.Join(tmpDir, "Test Artist")
+	albumDir := filepath.Join(artistDir, "Test Album")
+	if err := os.MkdirAll(albumDir, 0755); err != nil {
+		t.Fatalf("failed to create album directory: %v", err)
+	}
+
+	// Create a file in the album directory
+	testFile := filepath.Join(albumDir, "track.flac")
+	if err := os.WriteFile(testFile, []byte("dummy"), 0644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	org := NewOrganizer(tmpDir, slog.Default())
+
+	album := DownloadedAlbum{
+		ArtistName:  "Test Artist",
+		AlbumName:   "Test Album",
+		FolderPath:  "Test Artist/Test Album", // Already at correct path
+		MediumCount: 1,
+	}
+
+	// Should succeed without error
+	if err := org.OrganizeAlbums([]DownloadedAlbum{album}); err != nil {
+		t.Fatalf("OrganizeAlbums() error: %v", err)
+	}
+
+	// Verify file still exists
+	if _, err := os.Stat(testFile); os.IsNotExist(err) {
+		t.Error("file should still exist after no-op organization")
+	}
+}

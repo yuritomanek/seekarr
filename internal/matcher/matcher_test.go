@@ -227,6 +227,100 @@ func TestMatchTracks(t *testing.T) {
 	}
 }
 
+func TestMatchTracksDebug(t *testing.T) {
+	m := NewMatcher(0.8)
+
+	tests := []struct {
+		name        string
+		expected    []string
+		actual      []string
+		shouldMatch bool
+		minAvgRatio float64
+		wantInfoLen int
+		checkInfo   func(t *testing.T, info []TrackMatchInfo)
+	}{
+		{
+			name:        "exact matches with debug info",
+			expected:    []string{"Track 1.flac", "Track 2.flac"},
+			actual:      []string{"Track 1.flac", "Track 2.flac"},
+			shouldMatch: true,
+			minAvgRatio: 0.95,
+			wantInfoLen: 2,
+			checkInfo: func(t *testing.T, info []TrackMatchInfo) {
+				for i, inf := range info {
+					if !inf.Matched {
+						t.Errorf("track %d should be matched", i)
+					}
+					if inf.BestRatio < 0.95 {
+						t.Errorf("track %d ratio %f < 0.95", i, inf.BestRatio)
+					}
+					if inf.ExpectedTrack == "" {
+						t.Error("expected track should not be empty")
+					}
+					if inf.BestMatch == "" {
+						t.Error("best match should not be empty")
+					}
+				}
+			},
+		},
+		{
+			name:        "partial match with debug info",
+			expected:    []string{"Track 1.flac", "Track 2.flac", "Track 3.flac"},
+			actual:      []string{"Track 1.flac", "Track 2.flac"},
+			shouldMatch: false,
+			wantInfoLen: 0, // Returns early when not enough files
+			checkInfo: func(t *testing.T, info []TrackMatchInfo) {
+				// When there aren't enough files, it returns empty info
+			},
+		},
+		{
+			name:        "no match with debug info",
+			expected:    []string{"Track 1.flac"},
+			actual:      []string{"Other Song.flac"},
+			shouldMatch: false,
+			wantInfoLen: 1,
+			checkInfo: func(t *testing.T, info []TrackMatchInfo) {
+				if info[0].Matched {
+					t.Error("track should not be matched")
+				}
+				if info[0].BestRatio >= 0.8 {
+					t.Errorf("ratio should be < 0.8, got %f", info[0].BestRatio)
+				}
+			},
+		},
+		{
+			name:        "empty lists",
+			expected:    []string{},
+			actual:      []string{"Track 1.flac"},
+			shouldMatch: false,
+			wantInfoLen: 0,
+			checkInfo:   func(t *testing.T, info []TrackMatchInfo) {},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			matched, ratio, info := m.MatchTracksDebug(tt.expected, tt.actual)
+
+			if matched != tt.shouldMatch {
+				t.Errorf("MatchTracksDebug() matched = %v, want %v", matched, tt.shouldMatch)
+			}
+
+			if matched && ratio < tt.minAvgRatio {
+				t.Errorf("MatchTracksDebug() ratio = %f, want >= %f", ratio, tt.minAvgRatio)
+			}
+
+			if len(info) != tt.wantInfoLen {
+				t.Errorf("MatchTracksDebug() returned %d info items, want %d", len(info), tt.wantInfoLen)
+			}
+
+			if tt.checkInfo != nil {
+				tt.checkInfo(t, info)
+			}
+		})
+	}
+}
+
 func TestExtractFilename(t *testing.T) {
 	tests := []struct {
 		input    string

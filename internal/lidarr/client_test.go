@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -235,4 +236,122 @@ func TestClientErrorHandling(t *testing.T) {
 	if err.Error() == "" {
 		t.Error("error message should not be empty")
 	}
+}
+
+func TestUpdateAlbum(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "PUT" {
+			t.Errorf("expected PUT request, got %s", r.Method)
+		}
+
+		if !strings.Contains(r.URL.Path, "/api/v1/album/123") {
+			t.Errorf("unexpected URL path: %s", r.URL.Path)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusAccepted)
+		json.NewEncoder(w).Encode(Album{
+			ID:    123,
+			Title: "Updated Album",
+		})
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "test-key")
+
+	album := &Album{
+		ID:    123,
+		Title: "Updated Album",
+	}
+
+	result, err := client.UpdateAlbum(context.Background(), album)
+	if err != nil {
+		t.Fatalf("UpdateAlbum() error: %v", err)
+	}
+
+	if result.ID != 123 {
+		t.Errorf("expected album ID 123, got %d", result.ID)
+	}
+
+	if result.Title != "Updated Album" {
+		t.Errorf("expected title 'Updated Album', got %q", result.Title)
+	}
+}
+
+func TestGetQueue(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasSuffix(r.URL.Path, "/api/v1/queue") {
+			t.Errorf("unexpected URL path: %s", r.URL.Path)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(QueueResponse{
+			TotalRecords: 2,
+			Records: []QueueItem{
+				{ID: 1, AlbumID: intPtr(10), Title: "Album 1", Status: "downloading"},
+				{ID: 2, AlbumID: intPtr(20), Title: "Album 2", Status: "queued"},
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "test-key")
+
+	result, err := client.GetQueue(context.Background(), 1, 50)
+	if err != nil {
+		t.Fatalf("GetQueue() error: %v", err)
+	}
+
+	if result.TotalRecords != 2 {
+		t.Errorf("expected 2 total records, got %d", result.TotalRecords)
+	}
+
+	if len(result.Records) != 2 {
+		t.Errorf("expected 2 queue items, got %d", len(result.Records))
+	}
+
+	if result.Records[0].Title != "Album 1" {
+		t.Errorf("expected first item title 'Album 1', got %q", result.Records[0].Title)
+	}
+}
+
+func TestGetCommand(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.URL.Path, "/api/v1/command/123") {
+			t.Errorf("unexpected URL path: %s", r.URL.Path)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(CommandResponse{
+			ID:          123,
+			Name:        "DownloadedAlbumsScan",
+			CommandName: "DownloadedAlbumsScan",
+			Status:      "completed",
+			Message:     "Completed successfully",
+		})
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "test-key")
+
+	result, err := client.GetCommand(context.Background(), 123)
+	if err != nil {
+		t.Fatalf("GetCommand() error: %v", err)
+	}
+
+	if result.ID != 123 {
+		t.Errorf("expected command ID 123, got %d", result.ID)
+	}
+
+	if result.Status != "completed" {
+		t.Errorf("expected status 'completed', got %q", result.Status)
+	}
+
+	if result.Message != "Completed successfully" {
+		t.Errorf("expected message 'Completed successfully', got %q", result.Message)
+	}
+}
+
+func intPtr(i int) *int {
+	return &i
 }
