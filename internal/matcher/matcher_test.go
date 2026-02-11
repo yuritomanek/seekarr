@@ -231,21 +231,21 @@ func TestMatchTracksDebug(t *testing.T) {
 	m := NewMatcher(0.8)
 
 	tests := []struct {
-		name         string
-		expected     []string
-		actual       []string
-		shouldMatch  bool
-		minAvgRatio  float64
-		wantInfoLen  int
-		checkInfo    func(t *testing.T, info []TrackMatchInfo)
+		name        string
+		expected    []string
+		actual      []string
+		shouldMatch bool
+		minAvgRatio float64
+		wantInfoLen int
+		checkInfo   func(t *testing.T, info []TrackMatchInfo)
 	}{
 		{
-			name:         "exact matches with debug info",
-			expected:     []string{"Track 1.flac", "Track 2.flac"},
-			actual:       []string{"Track 1.flac", "Track 2.flac"},
-			shouldMatch:  true,
-			minAvgRatio:  0.95,
-			wantInfoLen:  2,
+			name:        "exact matches with debug info",
+			expected:    []string{"Track 1.flac", "Track 2.flac"},
+			actual:      []string{"Track 1.flac", "Track 2.flac"},
+			shouldMatch: true,
+			minAvgRatio: 0.95,
+			wantInfoLen: 2,
 			checkInfo: func(t *testing.T, info []TrackMatchInfo) {
 				for i, inf := range info {
 					if !inf.Matched {
@@ -264,21 +264,21 @@ func TestMatchTracksDebug(t *testing.T) {
 			},
 		},
 		{
-			name:         "partial match with debug info",
-			expected:     []string{"Track 1.flac", "Track 2.flac", "Track 3.flac"},
-			actual:       []string{"Track 1.flac", "Track 2.flac"},
-			shouldMatch:  false,
-			wantInfoLen:  0, // Returns early when not enough files
+			name:        "partial match with debug info",
+			expected:    []string{"Track 1.flac", "Track 2.flac", "Track 3.flac"},
+			actual:      []string{"Track 1.flac", "Track 2.flac"},
+			shouldMatch: false,
+			wantInfoLen: 0, // Returns early when not enough files
 			checkInfo: func(t *testing.T, info []TrackMatchInfo) {
 				// When there aren't enough files, it returns empty info
 			},
 		},
 		{
-			name:         "no match with debug info",
-			expected:     []string{"Track 1.flac"},
-			actual:       []string{"Other Song.flac"},
-			shouldMatch:  false,
-			wantInfoLen:  1,
+			name:        "no match with debug info",
+			expected:    []string{"Track 1.flac"},
+			actual:      []string{"Other Song.flac"},
+			shouldMatch: false,
+			wantInfoLen: 1,
 			checkInfo: func(t *testing.T, info []TrackMatchInfo) {
 				if info[0].Matched {
 					t.Error("track should not be matched")
@@ -289,12 +289,12 @@ func TestMatchTracksDebug(t *testing.T) {
 			},
 		},
 		{
-			name:         "empty lists",
-			expected:     []string{},
-			actual:       []string{"Track 1.flac"},
-			shouldMatch:  false,
-			wantInfoLen:  0,
-			checkInfo:    func(t *testing.T, info []TrackMatchInfo) {},
+			name:        "empty lists",
+			expected:    []string{},
+			actual:      []string{"Track 1.flac"},
+			shouldMatch: false,
+			wantInfoLen: 0,
+			checkInfo:   func(t *testing.T, info []TrackMatchInfo) {},
 		},
 	}
 
