@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/yuritomanek/seekarr/internal/config"
 	"github.com/yuritomanek/seekarr/internal/lidarr"
@@ -93,6 +94,18 @@ func run() int {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
+	// Run processor - either once or in daemon mode
+	if cfg.Daemon.Enabled {
+		logger.Info("starting daemon mode", "interval_minutes", cfg.Daemon.IntervalMinutes)
+		return runDaemon(ctx, cancel, proc, sigChan, cfg, logger)
+	}
+
+	// Single run mode
+	return runOnce(ctx, cancel, proc, sigChan, logger)
+}
+
+// runOnce executes a single processor run
+func runOnce(ctx context.Context, cancel context.CancelFunc, proc *processor.Processor, sigChan chan os.Signal, logger *slog.Logger) int {
 	// Run processor in goroutine
 	errChan := make(chan error, 1)
 	go func() {
@@ -121,6 +134,43 @@ func run() int {
 
 		logger.Info("shutdown complete")
 		return 0
+	}
+}
+
+// runDaemon executes the processor in a loop with periodic intervals
+func runDaemon(ctx context.Context, cancel context.CancelFunc, proc *processor.Processor, sigChan chan os.Signal, cfg *config.Config, logger *slog.Logger) int {
+	ticker := time.NewTicker(time.Duration(cfg.Daemon.IntervalMinutes) * time.Minute)
+	defer ticker.Stop()
+
+	// Run immediately on startup
+	if err := proc.Run(ctx); err != nil && err != context.Canceled {
+		logger.Error("processor failed", "error", err)
+		// Don't exit - continue in daemon mode
+	} else if err == nil {
+		logger.Info("processor completed successfully")
+	}
+
+	for {
+		select {
+		case <-ticker.C:
+			logger.Info("starting periodic processor run")
+			if err := proc.Run(ctx); err != nil && err != context.Canceled {
+				logger.Error("processor failed", "error", err)
+				// Continue running - don't exit on error
+			} else if err == nil {
+				logger.Info("processor completed successfully")
+			}
+
+		case sig := <-sigChan:
+			logger.Warn("received signal, shutting down daemon", "signal", sig)
+			cancel()
+			logger.Info("shutdown complete")
+			return 0
+
+		case <-ctx.Done():
+			logger.Info("context cancelled, shutting down daemon")
+			return 0
+		}
 	}
 }
 

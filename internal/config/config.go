@@ -19,6 +19,7 @@ type Config struct {
 	Download DownloadSettings `yaml:"download"`
 	Timing   TimingSettings   `yaml:"timing"`
 	Logging  LoggingConfig    `yaml:"logging"`
+	Daemon   DaemonSettings   `yaml:"daemon"`
 }
 
 type LidarrConfig struct {
@@ -75,6 +76,13 @@ type TimingSettings struct {
 	DownloadPollSeconds   int `yaml:"download_poll_seconds"`
 	ImportPollSeconds     int `yaml:"import_poll_seconds"`
 	StallCheckIntervalSec int `yaml:"stall_check_interval_seconds"`
+}
+
+type DaemonSettings struct {
+	Enabled              bool `yaml:"enabled"`
+	IntervalMinutes      int  `yaml:"interval_minutes"`
+	DeleteAfterImport    bool `yaml:"delete_after_import"`
+	CleanupDelaySeconds  int  `yaml:"cleanup_delay_seconds"`
 }
 
 type LoggingConfig struct {
@@ -178,6 +186,14 @@ func (c *Config) setDefaults() {
 	}
 	if c.Logging.Datefmt == "" {
 		c.Logging.Datefmt = time.RFC3339
+	}
+
+	// Daemon defaults
+	if c.Daemon.IntervalMinutes == 0 {
+		c.Daemon.IntervalMinutes = 15 // Run every 15 minutes by default
+	}
+	if c.Daemon.CleanupDelaySeconds == 0 {
+		c.Daemon.CleanupDelaySeconds = 10 // Wait 10 seconds after import before cleanup
 	}
 }
 
