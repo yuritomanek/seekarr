@@ -8,6 +8,8 @@ Seekarr bridges [Lidarr](https://lidarr.audio/) and [slskd](https://github.com/s
 - Fuzzy matching algorithm with configurable thresholds to find the best releases
 - Filter by file format (FLAC, MP3), bitrate, and other quality metrics
 - Automatically organizes downloaded music into Lidarr's expected structure
+- **Daemon mode**: Run continuously with configurable intervals (no cron needed!)
+- **Auto-cleanup**: Automatically deletes imported files and cleans slskd UI
 - Tracks search attempts and denylists albums after repeated failures
 - Handles signals properly to finish current operations before exiting
 - Monitors download progress and detects stalled downloads
@@ -94,11 +96,36 @@ Seekarr searches for configuration in this order:
 
 ## Usage
 
+### Single Run Mode (Default)
+
 Run once to process wanted albums:
 
 ```bash
 seekarr
 ```
+
+### Daemon Mode
+
+Run continuously, checking for new albums at regular intervals:
+
+```yaml
+# config.yaml
+daemon:
+  enabled: true
+  interval_minutes: 15  # Check every 15 minutes
+  delete_after_import: true  # Clean up after successful imports
+  cleanup_delay_seconds: 10  # Safety delay before cleanup
+```
+
+```bash
+seekarr  # Runs continuously until stopped with Ctrl+C
+```
+
+**Benefits of daemon mode:**
+- No need for cron jobs
+- Single long-running process
+- Automatic cleanup saves disk space
+- Keeps slskd downloads page clean
 
 ### Logging
 
@@ -117,19 +144,23 @@ LOG_FORMAT=json seekarr
 
 ### Scheduling
 
-Run periodically with cron:
+**Option 1: Daemon Mode (Recommended)**
+
+Enable daemon mode in your config for continuous operation:
+
+```yaml
+daemon:
+  enabled: true
+  interval_minutes: 15
+```
+
+**Option 2: Cron Jobs**
+
+Alternatively, run periodically with cron (daemon mode disabled):
 
 ```cron
 # Run every 30 minutes
 */30 * * * * /usr/local/bin/seekarr
-```
-
-### Docker
-
-```bash
-docker run -v /path/to/config.yaml:/config/config.yaml \
-           -v /path/to/downloads:/downloads \
-           seekarr/seekarr:latest
 ```
 
 ## How It Works
@@ -141,6 +172,8 @@ docker run -v /path/to/config.yaml:/config/config.yaml \
 5. Tracks download progress and detects stalled transfers
 6. Moves and renames files to match Lidarr's expected structure
 7. Triggers Lidarr to import the organized files
+8. **(Optional)** Waits for Lidarr to finish copying files (configurable delay)
+9. **(Optional)** Deletes imported files and cleans up slskd downloads page
 
 ## Development
 
@@ -234,6 +267,15 @@ seekarr/
 - `search_wait_seconds`: Delay between searches
 - `download_poll_seconds`: How often to check download progress
 - `import_poll_seconds`: How often to check import status
+
+### Daemon Mode
+
+- `enabled`: Run continuously instead of exiting after one run
+- `interval_minutes`: How often to check for new wanted albums (default: 15)
+- `delete_after_import`: Automatically delete organized folders after successful Lidarr import
+- `cleanup_delay_seconds`: Safety delay after import completion before cleanup (default: 10)
+
+**Note:** Only successfully imported albums are deleted. Failed imports are preserved for debugging.
 
 ## Contributing
 

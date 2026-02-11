@@ -1,5 +1,9 @@
 # Seekarr Configuration Example
 # Copy this file to config.yaml and fill in your API keys
+#
+# NOTE: Some configuration options are defined but not yet implemented.
+# These are marked with "# NOT IMPLEMENTED" comments.
+# They are included for future compatibility but currently have no effect.
 
 lidarr:
   api_key: ${LIDARR_API_KEY}  # Required: Your Lidarr API key
@@ -15,17 +19,19 @@ slskd:
   delete_searches: false
   stalled_timeout: 3600  # Seconds before considering a download stalled
 
+# NOTE: Release filtering options are defined but NOT YET IMPLEMENTED
+# These will be added in a future version
 release:
-  use_most_common_tracknum: true
-  allow_multi_disc: true
-  accepted_countries:
+  use_most_common_tracknum: true  # NOT IMPLEMENTED
+  allow_multi_disc: true  # NOT IMPLEMENTED
+  accepted_countries:  # NOT IMPLEMENTED
     - Europe
     - Japan
     - United States
     - United Kingdom
     - "[Worldwide]"
-  skip_region_check: false
-  accepted_formats:
+  skip_region_check: false  # NOT IMPLEMENTED
+  accepted_formats:  # NOT IMPLEMENTED
     - CD
     - Digital Media
     - Vinyl
@@ -42,21 +48,22 @@ search:
     - mp3 320
     - mp3
   ignored_users: []  # List of Soulseek usernames to ignore
-  search_for_tracks: true
-  album_prepend_artist: false
-  track_prepend_artist: true
+  search_for_tracks: true  # NOT IMPLEMENTED - always searches by album
+  album_prepend_artist: false  # NOT IMPLEMENTED
+  track_prepend_artist: true  # NOT IMPLEMENTED
   search_type: incrementing_page  # Options: first_page, incrementing_page, all
   number_of_albums_to_grab: 10
-  remove_wanted_on_failure: false
+  remove_wanted_on_failure: false  # NOT IMPLEMENTED
   title_blacklist: []  # Albums containing these strings will be skipped
-  search_source: missing  # Options: missing, cutoff_unmet, all
-  enable_search_denylist: true
+  search_source: missing  # NOT IMPLEMENTED - always uses "missing"
+  enable_search_denylist: true  # NOT IMPLEMENTED - denylist is always enabled
   max_search_failures: 3  # Skip album after this many failed search attempts
 
+# NOTE: Download filtering options are defined but NOT YET IMPLEMENTED
 download:
-  download_filtering: true
-  use_extension_whitelist: false
-  extensions_whitelist:
+  download_filtering: true  # NOT IMPLEMENTED
+  use_extension_whitelist: false  # NOT IMPLEMENTED
+  extensions_whitelist:  # NOT IMPLEMENTED
     - lrc
     - nfo
     - txt
@@ -67,9 +74,15 @@ timing:
   search_wait_seconds: 5  # Wait time after initiating search
   download_poll_seconds: 10  # How often to check download progress
   import_poll_seconds: 2  # How often to check Lidarr import status
-  stall_check_interval_seconds: 60
+  stall_check_interval_seconds: 60  # NOT IMPLEMENTED
 
 logging:
   level: INFO  # Options: DEBUG, INFO, WARN, ERROR
   format: ""  # Leave empty for text, or set to "json"
   datefmt: ""
+
+daemon:
+  enabled: false  # Set to true to run continuously
+  interval_minutes: 15  # How often to check for new albums (daemon mode only)
+  delete_after_import: true  # Delete organized folders after successful Lidarr import
+  cleanup_delay_seconds: 10  # Wait time after import completion before cleanup (safety buffer)
