@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -886,7 +887,8 @@ func (p *Processor) triggerImport(ctx context.Context, downloadList []Downloaded
 	}
 
 	// Trigger import for each artist folder
-	var commandIDs []int
+	// Map commandID to artist folder for cleanup later
+	commandToFolder := make(map[int]string)
 	for artistFolder := range artistFolders {
 		path := filepath.Join(p.cfg.Lidarr.DownloadDir, artistFolder)
 
@@ -901,32 +903,40 @@ func (p *Processor) triggerImport(ctx context.Context, downloadList []Downloaded
 			continue
 		}
 
-		commandIDs = append(commandIDs, resp.ID)
+		commandToFolder[resp.ID] = artistFolder
 		p.logger.Info("triggered import", "path", path, "commandID", resp.ID)
 	}
 
-	// Poll for completion
-	if len(commandIDs) > 0 {
-		p.pollImportCompletion(ctx, commandIDs)
+	// Poll for completion and clean up successful imports
+	if len(commandToFolder) > 0 {
+		successfulFolders := p.pollImportCompletion(ctx, commandToFolder)
+
+		// Clean up successful imports if configured
+		if p.cfg.Daemon.DeleteAfterImport && len(successfulFolders) > 0 {
+			p.cleanupImportedFolders(ctx, successfulFolders)
+		}
 	}
 
 	return nil
 }
 
 // pollImportCompletion polls Lidarr until import commands complete
-func (p *Processor) pollImportCompletion(ctx context.Context, commandIDs []int) {
+// Returns a list of artist folders that were successfully imported
+func (p *Processor) pollImportCompletion(ctx context.Context, commandToFolder map[int]string) []string {
 	pollInterval := time.Duration(p.cfg.Timing.ImportPollSeconds) * time.Second
 	pending := make(map[int]bool)
-	for _, id := range commandIDs {
+	for id := range commandToFolder {
 		pending[id] = true
 	}
 
-	p.logger.Info("polling import completion", "commands", len(commandIDs))
+	p.logger.Info("polling import completion", "commands", len(commandToFolder))
+
+	var successfulFolders []string
 
 	for len(pending) > 0 {
 		select {
 		case <-ctx.Done():
-			return
+			return successfulFolders
 		default:
 		}
 
@@ -944,7 +954,11 @@ func (p *Processor) pollImportCompletion(ctx context.Context, commandIDs []int) 
 					"message", cmd.Message,
 					"body", cmd.Body)
 
-				if strings.Contains(strings.ToLower(cmd.Message), "failed") {
+				// Check if import was successful (completed without "failed" in message)
+				if cmd.Status == "completed" && !strings.Contains(strings.ToLower(cmd.Message), "failed") {
+					artistFolder := commandToFolder[id]
+					successfulFolders = append(successfulFolders, artistFolder)
+				} else {
 					// TODO: Move to failed imports
 					p.logger.Warn("import failed", "commandID", id, "body", cmd.Body)
 				}
@@ -959,4 +973,48 @@ func (p *Processor) pollImportCompletion(ctx context.Context, commandIDs []int) 
 	}
 
 	p.logger.Info("all imports complete")
+	return successfulFolders
+}
+
+// cleanupImportedFolders deletes successfully imported folders and cleans up slskd
+func (p *Processor) cleanupImportedFolders(ctx context.Context, folders []string) {
+	if len(folders) == 0 {
+		return
+	}
+
+	p.logger.Info("cleaning up imported folders", "count", len(folders))
+
+	// Safety delay: Wait for Lidarr to finish copying files before cleanup
+	if p.cfg.Daemon.CleanupDelaySeconds > 0 {
+		p.logger.Info("waiting for Lidarr to complete file operations",
+			"delay_seconds", p.cfg.Daemon.CleanupDelaySeconds)
+
+		select {
+		case <-time.After(time.Duration(p.cfg.Daemon.CleanupDelaySeconds) * time.Second):
+			// Delay complete
+		case <-ctx.Done():
+			p.logger.Info("cleanup cancelled during delay")
+			return
+		}
+	}
+
+	// Delete folders from disk
+	for _, folder := range folders {
+		// Use the slskd download dir (local path) for deletion
+		folderPath := filepath.Join(p.cfg.Slskd.DownloadDir, folder)
+
+		p.logger.Debug("removing folder", "path", folderPath)
+		if err := os.RemoveAll(folderPath); err != nil {
+			p.logger.Warn("failed to remove folder", "path", folderPath, "error", err)
+		} else {
+			p.logger.Info("removed imported folder", "folder", folder)
+		}
+	}
+
+	// Clean up completed downloads from slskd UI
+	if err := p.slskd.RemoveCompletedDownloads(ctx); err != nil {
+		p.logger.Warn("failed to remove completed downloads from slskd", "error", err)
+	} else {
+		p.logger.Info("cleaned up completed downloads from slskd")
+	}
 }
