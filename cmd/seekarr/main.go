@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"io"
 	"log/slog"
@@ -18,7 +19,12 @@ import (
 	"github.com/yuritomanek/seekarr/internal/state"
 )
 
-const version = "1.0.0"
+// Version information (set by goreleaser at build time)
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
 
 func main() {
 	// Exit with proper status code
@@ -26,6 +32,17 @@ func main() {
 }
 
 func run() int {
+	// Parse command line flags
+	showVersion := flag.Bool("version", false, "Show version information and exit")
+	flag.Parse()
+
+	if *showVersion {
+		fmt.Printf("seekarr %s\n", version)
+		fmt.Printf("  commit: %s\n", commit)
+		fmt.Printf("  built:  %s\n", date)
+		return 0
+	}
+
 	// Set up structured logging
 	logger := setupLogger()
 
@@ -142,28 +159,52 @@ func runDaemon(ctx context.Context, cancel context.CancelFunc, proc *processor.P
 	ticker := time.NewTicker(time.Duration(cfg.Daemon.IntervalMinutes) * time.Minute)
 	defer ticker.Stop()
 
-	// Run immediately on startup
-	if err := proc.Run(ctx); err != nil && err != context.Canceled {
-		logger.Error("processor failed", "error", err)
-		// Don't exit - continue in daemon mode
-	} else if err == nil {
-		logger.Info("processor completed successfully")
+	// Track whether a processor run is currently active
+	running := make(chan struct{}, 1)
+	running <- struct{}{} // Initially not running (token available)
+
+	// Helper function to run processor asynchronously
+	runProcessor := func() {
+		select {
+		case <-running:
+			// Acquired the token, start the run
+			go func() {
+				defer func() {
+					running <- struct{}{} // Release token when done
+				}()
+
+				if err := proc.Run(ctx); err != nil && err != context.Canceled {
+					logger.Error("processor failed", "error", err)
+				} else if err == nil {
+					logger.Info("processor completed successfully")
+				}
+			}()
+		default:
+			logger.Warn("skipping scheduled run - processor is still running from previous interval")
+		}
 	}
+
+	// Run immediately on startup
+	runProcessor()
 
 	for {
 		select {
 		case <-ticker.C:
-			logger.Info("starting periodic processor run")
-			if err := proc.Run(ctx); err != nil && err != context.Canceled {
-				logger.Error("processor failed", "error", err)
-				// Continue running - don't exit on error
-			} else if err == nil {
-				logger.Info("processor completed successfully")
+			// Only start a new run if we're not shutting down
+			select {
+			case <-ctx.Done():
+				logger.Info("context cancelled, skipping scheduled run")
+				return 0
+			default:
+				logger.Info("starting periodic processor run")
+				runProcessor()
 			}
 
 		case sig := <-sigChan:
 			logger.Warn("received signal, shutting down daemon", "signal", sig)
 			cancel()
+			// Give processor a moment to finish cleanup (but don't block indefinitely)
+			time.Sleep(500 * time.Millisecond)
 			logger.Info("shutdown complete")
 			return 0
 

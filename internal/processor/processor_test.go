@@ -3,7 +3,6 @@ package processor
 import (
 	"context"
 	"log/slog"
-	"os"
 	"testing"
 
 	"github.com/yuritomanek/seekarr/internal/config"
@@ -170,23 +169,53 @@ func (m *mockLidarrClientWithCommands) PostCommand(ctx context.Context, cmd lida
 	return &lidarr.CommandResponse{ID: id}, nil
 }
 
-// mockSlskdClientWithTracking tracks RemoveCompletedDownloads calls
+// mockSlskdClientWithTracking tracks download removal calls
 type mockSlskdClientWithTracking struct {
 	mockSlskdClient
-	removeCalled bool
+	canceledDownloads []string              // Track which downloads were canceled
+	downloads         []downloadCleanupInfo // Track which downloads we should return
+}
+
+func (m *mockSlskdClientWithTracking) GetDownloads(ctx context.Context) (slskd.DownloadsResponse, error) {
+	// Return mock downloads that match the downloads being cleaned up
+	var response slskd.DownloadsResponse
+	for _, download := range m.downloads {
+		response = append(response, slskd.UserDownloads{
+			Username: download.username,
+			Directories: []slskd.DirectoryDownloads{
+				{
+					Directory: download.directory,
+					Files: []slskd.DownloadFile{
+						{
+							ID:       download.username + "-" + download.directory + "-file1",
+							Filename: download.directory + "/track1.flac",
+							State:    "Completed, Succeeded",
+							Size:     1000,
+						},
+					},
+				},
+			},
+		})
+	}
+	return response, nil
+}
+
+func (m *mockSlskdClientWithTracking) CancelDownload(ctx context.Context, username, downloadID string) error {
+	m.canceledDownloads = append(m.canceledDownloads, downloadID)
+	return nil
 }
 
 func (m *mockSlskdClientWithTracking) RemoveCompletedDownloads(ctx context.Context) error {
-	m.removeCalled = true
+	// No longer used
 	return nil
 }
 
 func TestPollImportCompletion(t *testing.T) {
 	tests := []struct {
-		name            string
-		commands        map[int]*lidarr.CommandResponse
-		commandToFolder map[int]string
-		wantSuccessful  []string
+		name                string
+		commands            map[int]*lidarr.CommandResponse
+		commandToDownloads  map[int][]downloadCleanupInfo
+		wantSuccessfulCount int
 	}{
 		{
 			name: "all successful",
@@ -194,11 +223,11 @@ func TestPollImportCompletion(t *testing.T) {
 				1: {ID: 1, Status: "completed", Message: "Importing 5 tracks"},
 				2: {ID: 2, Status: "completed", Message: "Importing 3 tracks"},
 			},
-			commandToFolder: map[int]string{
-				1: "Artist One",
-				2: "Artist Two",
+			commandToDownloads: map[int][]downloadCleanupInfo{
+				1: {{username: "user1", directory: "/Artist One"}},
+				2: {{username: "user2", directory: "/Artist Two"}},
 			},
-			wantSuccessful: []string{"Artist One", "Artist Two"},
+			wantSuccessfulCount: 2,
 		},
 		{
 			name: "one failed",
@@ -206,11 +235,11 @@ func TestPollImportCompletion(t *testing.T) {
 				1: {ID: 1, Status: "completed", Message: "Importing 5 tracks"},
 				2: {ID: 2, Status: "completed", Message: "Failed to import"},
 			},
-			commandToFolder: map[int]string{
-				1: "Artist One",
-				2: "Artist Two",
+			commandToDownloads: map[int][]downloadCleanupInfo{
+				1: {{username: "user1", directory: "/Artist One"}},
+				2: {{username: "user2", directory: "/Artist Two"}},
 			},
-			wantSuccessful: []string{"Artist One"},
+			wantSuccessfulCount: 1,
 		},
 		{
 			name: "all failed",
@@ -218,17 +247,17 @@ func TestPollImportCompletion(t *testing.T) {
 				1: {ID: 1, Status: "failed", Message: "Error"},
 				2: {ID: 2, Status: "completed", Message: "Failed to import"},
 			},
-			commandToFolder: map[int]string{
-				1: "Artist One",
-				2: "Artist Two",
+			commandToDownloads: map[int][]downloadCleanupInfo{
+				1: {{username: "user1", directory: "/Artist One"}},
+				2: {{username: "user2", directory: "/Artist Two"}},
 			},
-			wantSuccessful: []string{},
+			wantSuccessfulCount: 0,
 		},
 		{
-			name:            "empty",
-			commands:        map[int]*lidarr.CommandResponse{},
-			commandToFolder: map[int]string{},
-			wantSuccessful:  []string{},
+			name:                "empty",
+			commands:            map[int]*lidarr.CommandResponse{},
+			commandToDownloads:  map[int][]downloadCleanupInfo{},
+			wantSuccessfulCount: 0,
 		},
 	}
 
@@ -256,79 +285,50 @@ func TestPollImportCompletion(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			successful := processor.pollImportCompletion(ctx, tt.commandToFolder)
+			successful := processor.pollImportCompletion(ctx, tt.commandToDownloads)
 
-			if len(successful) != len(tt.wantSuccessful) {
-				t.Errorf("got %d successful folders, want %d", len(successful), len(tt.wantSuccessful))
-			}
-
-			// Check each successful folder
-			successMap := make(map[string]bool)
-			for _, s := range successful {
-				successMap[s] = true
-			}
-			for _, want := range tt.wantSuccessful {
-				if !successMap[want] {
-					t.Errorf("expected folder %q not in successful list", want)
-				}
+			if len(successful) != tt.wantSuccessfulCount {
+				t.Errorf("got %d successful downloads, want %d", len(successful), tt.wantSuccessfulCount)
 			}
 		})
 	}
 }
 
-func TestCleanupImportedFolders(t *testing.T) {
+func TestCleanupImportedDownloads(t *testing.T) {
 	tests := []struct {
 		name                string
-		folders             []string
-		createFolders       bool
+		downloads           []downloadCleanupInfo
 		cleanupDelaySeconds int
-		wantRemoveCalled    bool
+		wantCanceledCount   int
 	}{
 		{
-			name:                "cleanup with folders",
-			folders:             []string{"Artist One", "Artist Two"},
-			createFolders:       true,
+			name: "cleanup with downloads",
+			downloads: []downloadCleanupInfo{
+				{username: "user1", directory: "/Artist One"},
+				{username: "user2", directory: "/Artist Two"},
+			},
 			cleanupDelaySeconds: 0,
-			wantRemoveCalled:    true,
+			wantCanceledCount:   2, // One file per download
 		},
 		{
-			name:                "cleanup with delay",
-			folders:             []string{"Artist One"},
-			createFolders:       true,
+			name: "cleanup with delay",
+			downloads: []downloadCleanupInfo{
+				{username: "user1", directory: "/Artist One"},
+			},
 			cleanupDelaySeconds: 1,
-			wantRemoveCalled:    true,
+			wantCanceledCount:   1,
 		},
 		{
-			name:                "no folders",
-			folders:             []string{},
-			createFolders:       false,
+			name:                "no downloads",
+			downloads:           []downloadCleanupInfo{},
 			cleanupDelaySeconds: 0,
-			wantRemoveCalled:    false,
+			wantCanceledCount:   0,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tmpDir := t.TempDir()
-
-			// Create test folders
-			if tt.createFolders {
-				for _, folder := range tt.folders {
-					folderPath := tmpDir + "/" + folder
-					if err := os.MkdirAll(folderPath, 0755); err != nil {
-						t.Fatalf("failed to create test folder: %v", err)
-					}
-					// Create a test file in the folder
-					testFile := folderPath + "/test.txt"
-					if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
-						t.Fatalf("failed to create test file: %v", err)
-					}
-				}
-			}
-
 			cfg := &config.Config{
-				Lidarr: config.LidarrConfig{DownloadDir: tmpDir},
-				Slskd:  config.SlskdConfig{DownloadDir: tmpDir},
 				Daemon: config.DaemonSettings{
 					CleanupDelaySeconds: tt.cleanupDelaySeconds,
 				},
@@ -340,7 +340,9 @@ func TestCleanupImportedFolders(t *testing.T) {
 			}
 
 			lidarrClient := &mockLidarrClient{}
-			slskdClient := &mockSlskdClientWithTracking{}
+			slskdClient := &mockSlskdClientWithTracking{
+				downloads: tt.downloads, // Set downloads so GetDownloads returns matching data
+			}
 
 			processor, err := NewProcessor(cfg, lidarrClient, slskdClient, slog.Default())
 			if err != nil {
@@ -348,22 +350,12 @@ func TestCleanupImportedFolders(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			processor.cleanupImportedFolders(ctx, tt.folders)
+			processor.cleanupImportedDownloads(ctx, tt.downloads)
 
-			// Verify folders were deleted
-			if tt.createFolders {
-				for _, folder := range tt.folders {
-					folderPath := tmpDir + "/" + folder
-					if _, err := os.Stat(folderPath); !os.IsNotExist(err) {
-						t.Errorf("folder %q was not deleted", folder)
-					}
-				}
-			}
-
-			// Verify RemoveCompletedDownloads was called
-			if slskdClient.removeCalled != tt.wantRemoveCalled {
-				t.Errorf("RemoveCompletedDownloads called = %v, want %v",
-					slskdClient.removeCalled, tt.wantRemoveCalled)
+			// Verify individual downloads were canceled
+			if len(slskdClient.canceledDownloads) != tt.wantCanceledCount {
+				t.Errorf("canceled %d downloads, want %d",
+					len(slskdClient.canceledDownloads), tt.wantCanceledCount)
 			}
 		})
 	}

@@ -58,6 +58,8 @@ search:
   search_source: missing  # NOT IMPLEMENTED - always uses "missing"
   enable_search_denylist: true  # NOT IMPLEMENTED - denylist is always enabled
   max_search_failures: 3  # Skip album after this many failed search attempts
+  sort_key: ""  # Optional: How to sort wanted albums. Valid options: albums.title, albums.releaseDate, id. Leave empty for Lidarr's default order.
+  sort_dir: ""  # Optional: Sort direction (ascending, descending). Only used if sort_key is set.
 
 # NOTE: Download filtering options are defined but NOT YET IMPLEMENTED
 download:

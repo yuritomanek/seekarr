@@ -63,6 +63,8 @@ type SearchSettings struct {
 	SearchSource              string   `yaml:"search_source"` // missing, cutoff_unmet, all
 	EnableSearchDenylist      bool     `yaml:"enable_search_denylist"`
 	MaxSearchFailures         int      `yaml:"max_search_failures"`
+	SortKey                   string   `yaml:"sort_key"` // artist.sortName, albumTitle, releaseDate, etc.
+	SortDir                   string   `yaml:"sort_dir"` // ascending, descending
 }
 
 type DownloadSettings struct {
@@ -165,6 +167,8 @@ func (c *Config) setDefaults() {
 	if c.Search.MaxSearchFailures == 0 {
 		c.Search.MaxSearchFailures = 3
 	}
+	// Sort parameters are optional - if not set, Lidarr uses its default sorting
+	// Don't set defaults here to allow users to explicitly opt-in
 
 	// Timing defaults
 	if c.Timing.SearchWaitSeconds == 0 {
@@ -239,6 +243,9 @@ func (c *Config) Validate() error {
 	}
 	if c.Search.NumberOfAlbumsToGrab < 1 {
 		return fmt.Errorf("number_of_albums_to_grab must be at least 1, got %d", c.Search.NumberOfAlbumsToGrab)
+	}
+	if c.Search.SortDir != "" && c.Search.SortDir != "ascending" && c.Search.SortDir != "descending" {
+		return fmt.Errorf("sort_dir must be one of: ascending, descending (got %q)", c.Search.SortDir)
 	}
 
 	// Validate timing settings
