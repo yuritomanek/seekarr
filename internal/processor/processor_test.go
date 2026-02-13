@@ -212,9 +212,9 @@ func (m *mockSlskdClientWithTracking) RemoveCompletedDownloads(ctx context.Conte
 
 func TestPollImportCompletion(t *testing.T) {
 	tests := []struct {
-		name               string
-		commands           map[int]*lidarr.CommandResponse
-		commandToDownloads map[int][]downloadCleanupInfo
+		name                string
+		commands            map[int]*lidarr.CommandResponse
+		commandToDownloads  map[int][]downloadCleanupInfo
 		wantSuccessfulCount int
 	}{
 		{

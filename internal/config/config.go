@@ -63,7 +63,7 @@ type SearchSettings struct {
 	SearchSource              string   `yaml:"search_source"` // missing, cutoff_unmet, all
 	EnableSearchDenylist      bool     `yaml:"enable_search_denylist"`
 	MaxSearchFailures         int      `yaml:"max_search_failures"`
-	SortKey                   string   `yaml:"sort_key"`  // artist.sortName, albumTitle, releaseDate, etc.
+	SortKey                   string   `yaml:"sort_key"` // artist.sortName, albumTitle, releaseDate, etc.
 	SortDir                   string   `yaml:"sort_dir"` // ascending, descending
 }
 
