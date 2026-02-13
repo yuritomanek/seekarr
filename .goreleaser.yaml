@@ -1,0 +1,117 @@
+# GoReleaser configuration for Seekarr
+# Documentation: https://goreleaser.com
+
+version: 2
+
+project_name: seekarr
+
+before:
+  hooks:
+    # Ensure dependencies are up to date
+    - go mod tidy
+    # Run tests before building
+    - go test ./...
+
+builds:
+  - id: seekarr
+    main: ./cmd/seekarr
+    binary: seekarr
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+
+archives:
+  - id: seekarr-archive
+    format: tar.gz
+    name_template: >-
+      {{ .ProjectName }}-{{ .Version }}-{{ .Os }}-{{ .Arch }}
+    files:
+      - LICENSE
+      - README.md
+      - config.example.yaml
+
+checksum:
+  name_template: 'checksums.txt'
+  algorithm: sha256
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^ci:'
+      - '^chore:'
+      - Merge pull request
+      - Merge branch
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: Bug Fixes
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: Others
+      order: 999
+
+brews:
+  - name: seekarr
+    repository:
+      owner: yuritomanek
+      name: homebrew-seekarr
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    homepage: "https://github.com/yuritomanek/seekarr"
+    description: "Bridges Lidarr and slskd to automatically download missing music from Soulseek"
+    license: "MIT"
+    directory: Formula
+
+    install: |
+      bin.install "seekarr"
+      (etc/"seekarr").install "config.example.yaml"
+
+    test: |
+      system "#{bin}/seekarr", "--version"
+
+    caveats: |
+      Configuration example installed to:
+        #{etc}/seekarr/config.example.yaml
+
+      Copy and edit the config file:
+        mkdir -p ~/.config/seekarr
+        cp #{etc}/seekarr/config.example.yaml ~/.config/seekarr/config.yaml
+
+      Then edit ~/.config/seekarr/config.yaml with your Lidarr and Slskd API keys.
+
+release:
+  github:
+    owner: yuritomanek
+    name: seekarr
+  draft: false
+  prerelease: auto
+  mode: replace
+  header: |
+    ## Seekarr {{ .Version }}
+
+    Bridges Lidarr and slskd to automatically download missing music from Soulseek.
+
+    ### Installation
+
+    **Homebrew (macOS/Linux):**
+    ```bash
+    brew tap yuritomanek/seekarr
+    brew install seekarr
+    ```
+
+    **Manual Download:**
+    Download the appropriate binary for your platform below.

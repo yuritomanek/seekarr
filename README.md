@@ -17,14 +17,18 @@ Seekarr bridges [Lidarr](https://lidarr.audio/) and [slskd](https://github.com/s
 
 ## Installation
 
+### Homebrew (macOS/Linux)
+
+```bash
+brew tap yuritomanek/seekarr
+brew install seekarr
+```
+
+The example configuration will be installed to `/opt/homebrew/etc/seekarr/` (Apple Silicon) or `/usr/local/etc/seekarr/` (Intel).
+
 ### Pre-built Binaries
 
-Download the latest release for your platform from the [releases page](https://github.com/yuritomanek/seekarr/releases):
-
-- **macOS (Intel)**: `seekarr-v0.1.0-darwin-amd64.tar.gz`
-- **macOS (Apple Silicon)**: `seekarr-v0.1.0-darwin-arm64.tar.gz`
-- **Linux (x86_64)**: `seekarr-v0.1.0-linux-amd64.tar.gz`
-- **Linux (ARM64)**: `seekarr-v0.1.0-linux-arm64.tar.gz`
+Download the latest release for your platform from the [releases page](https://github.com/yuritomanek/seekarr/releases).
 
 Extract and install:
 
@@ -249,6 +253,8 @@ seekarr/
 - `number_of_albums_to_grab`: How many albums to process per run
 - `enable_search_denylist`: Automatically denylist albums after repeated failures
 - `max_search_failures`: Number of failures before denylisting
+- `sort_key`: How to sort wanted albums (e.g., `albums.title`, `albums.releaseDate`, `id`). Leave empty for Lidarr's default order
+- `sort_dir`: Sort direction (`ascending`, `descending`). Only used if sort_key is set
 
 ### Release Filtering
 
