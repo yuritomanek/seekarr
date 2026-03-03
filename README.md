@@ -298,3 +298,5 @@ Seekarr is a Go rewrite and enhancement of [Soularr](https://github.com/mrusse/s
 ## Support
 
 Report bugs and request features on [GitHub Issues](https://github.com/yuritomanek/seekarr/issues).
+
+Free your mind!
